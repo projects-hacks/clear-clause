@@ -1,0 +1,31 @@
+# Core dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+
+# Google AI (Gemini)
+google-genai>=0.3.0
+
+# Apryse SDK
+--extra-index-url https://pypi.apryse.com
+apryse-sdk
+
+# Deepgram SDK
+deepgram-sdk>=3.1.0
+
+# Async support
+httpx>=0.27.0
+aiofiles>=23.2.1
+
+# PDF fallback (if Apryse not available)
+PyPDF2>=3.0.1
+
+# Utilities
+python-dotenv>=1.0.0
+structlog>=24.1.0
+
+# Testing (optional)
+pytest>=7.4.4
+pytest-asyncio>=0.23.3
