@@ -25,46 +25,49 @@ export function useDocumentAnalysis() {
     setError(null);
 
     try {
-      // Upload document and get SSE stream
-      const { sessionId, reader, readProgress } = await uploadDocument(file);
+      const stream = await uploadDocument(file);
 
-      // Add session to state
+      // Read first SSE event to ensure we have sessionId
+      const firstEvent = await stream.readProgress();
+      const sessionId = stream.sessionId || firstEvent?.session_id;
+
+      if (!sessionId) {
+        throw new Error('Failed to get session ID from server');
+      }
+
+      // Add session to context + localStorage
       addSession({
         session_id: sessionId,
         document_name: file.name,
-        status: 'uploading',
-        progress: 10,
-        message: 'Document uploaded, starting analysis...',
+        status: firstEvent?.stage || 'uploading',
+        progress: firstEvent?.progress || 10,
+        message: firstEvent?.message || 'Document received, starting analysis...',
         created_at: new Date().toISOString(),
       });
 
-      // Read progress updates from SSE stream
-      while (true) {
-        const progress = await readProgress();
-        
-        if (!progress) {
-          // Stream ended
-          break;
+      // Continue reading SSE in background (non-blocking)
+      (async () => {
+        try {
+          while (true) {
+            const progress = await stream.readProgress();
+            if (!progress) break;
+            if (progress.error) {
+              updateSession(sessionId, { status: 'error', message: progress.error });
+              break;
+            }
+            updateSession(sessionId, {
+              status: progress.stage,
+              progress: progress.progress,
+              message: progress.message,
+              result: progress.data || null,
+            });
+            if (progress.stage === 'complete' || progress.stage === 'error') break;
+          }
+        } catch (err) {
+          console.error('SSE read error:', err);
+          updateSession(sessionId, { status: 'error', message: 'Connection lost. Retrying...' });
         }
-
-        if (progress.error) {
-          // Error from server
-          throw new Error(progress.error);
-        }
-
-        // Update session with progress
-        updateSession(sessionId, {
-          status: progress.stage,
-          progress: progress.progress,
-          message: progress.message,
-          result: progress.data || null,
-        });
-
-        // Stop if complete or error
-        if (progress.stage === 'complete' || progress.stage === 'error') {
-          break;
-        }
-      }
+      })();
 
       return sessionId;
     } catch (err) {

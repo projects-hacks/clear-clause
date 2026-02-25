@@ -15,19 +15,19 @@ function parseSSEData(text) {
   const events = [];
   const lines = text.split('\n');
   let currentData = '';
-  
+
   for (const line of lines) {
     const trimmed = line.trim();
-    
+
     // Skip empty lines and comments
     if (!trimmed || trimmed.startsWith(':')) continue;
-    
+
     // Parse data line
     if (trimmed.startsWith('data:')) {
       const data = trimmed.slice(5).trim();
       currentData += data;
     }
-    
+
     // Empty line marks end of event
     if (trimmed === '' && currentData) {
       try {
@@ -38,7 +38,7 @@ function parseSSEData(text) {
       }
     }
   }
-  
+
   // Handle any remaining data (partial event)
   if (currentData) {
     try {
@@ -47,14 +47,14 @@ function parseSSEData(text) {
       // Partial event, wait for more data
     }
   }
-  
+
   return events;
 }
 
 /**
  * Upload a document and start analysis.
  * Returns session ID for tracking progress.
- * 
+ *
  * @param {File} file - PDF file to upload
  * @returns {Promise<{sessionId: string}>}
  */
@@ -72,35 +72,42 @@ export async function uploadDocument(file) {
     throw new Error(error.message || 'Failed to upload document');
   }
 
-  // Get session ID from header
-  const sessionId = response.headers.get('X-Session-ID');
-  
+  // Get session ID from header (may be null if CORS blocks it)
+  let sessionId = response.headers.get('X-Session-ID');
+
   // Return SSE stream reader
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
 
   return {
-    sessionId,
+    get sessionId() { return sessionId; },
     reader,
     async readProgress() {
       const { done, value } = await reader.read();
       if (done) return null;
-      
+
       // Decode and add to buffer
       buffer += decoder.decode(value, { stream: true });
-      
+
       // Parse all complete events from buffer
       const events = parseSSEData(buffer);
-      
+
       // Keep any incomplete event in buffer
       const lastEventEnd = buffer.lastIndexOf('\n\n');
       if (lastEventEnd > 0) {
         buffer = buffer.slice(lastEventEnd + 2);
       }
-      
+
       // Return the last event (most recent progress)
-      return events.length > 0 ? events[events.length - 1] : null;
+      const lastEvent = events.length > 0 ? events[events.length - 1] : null;
+
+      // Fallback: extract sessionId from SSE payload
+      if (lastEvent?.session_id && !sessionId) {
+        sessionId = lastEvent.session_id;
+      }
+
+      return lastEvent;
     },
   };
 }
@@ -113,11 +120,11 @@ export async function uploadDocument(file) {
  */
 export async function getAnalysisStatus(sessionId) {
   const response = await fetch(`${API_BASE_URL}/analyze/${sessionId}`);
-  
+
   if (!response.ok) {
     throw new Error('Session not found or expired');
   }
-  
+
   return response.json();
 }
 
@@ -128,11 +135,11 @@ export async function getAnalysisStatus(sessionId) {
  */
 export async function listSessions() {
   const response = await fetch(`${API_BASE_URL}/sessions`);
-  
+
   if (!response.ok) {
     return [];
   }
-  
+
   return response.json();
 }
 
@@ -146,11 +153,11 @@ export async function cancelSession(sessionId) {
   const response = await fetch(`${API_BASE_URL}/session/${sessionId}`, {
     method: 'DELETE',
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to cancel session');
   }
-  
+
   return response.json();
 }
 
@@ -162,21 +169,20 @@ export async function cancelSession(sessionId) {
  * @returns {Promise<ChatResponse>}
  */
 export async function askQuestion(sessionId, question) {
-  const response = await fetch(`${API_BASE_URL}/chat`, {
+  const response = await fetch(`${API_BASE_URL}/chat?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      session_id: sessionId,
       question,
     }),
   });
-  
+
   if (!response.ok) {
     throw new Error('Chat request failed');
   }
-  
+
   return response.json();
 }
 
@@ -188,20 +194,19 @@ export async function askQuestion(sessionId, question) {
  * @returns {Promise<Blob>} Audio blob
  */
 export async function generateVoiceSummary(sessionId, text) {
-  const response = await fetch(`${API_BASE_URL}/voice-summary`, {
+  const response = await fetch(`${API_BASE_URL}/voice-summary?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      session_id: sessionId,
       text,
     }),
   });
-  
+
   if (!response.ok) {
     throw new Error('Voice summary generation failed');
   }
-  
+
   return response.blob();
 }
