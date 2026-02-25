@@ -1,9 +1,10 @@
 /**
  * Clause Card Component
- * 
+ *
  * Displays individual clause details with category, severity, and suggestions.
  */
 import React from 'react';
+import { AlertOctagon, AlertTriangle, Info, CheckCircle2, MessageCircle, BarChart2, Lightbulb, Copy, MapPin, ChevronUp, ChevronDown } from 'lucide-react';
 
 /**
  * Clause Card
@@ -29,10 +30,10 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
   };
 
   const severityIcons = {
-    critical: '🔴',
-    warning: '🟠',
-    info: '🔵',
-    safe: '🟢',
+    critical: <AlertOctagon size={14} />,
+    warning: <AlertTriangle size={14} />,
+    info: <Info size={14} />,
+    safe: <CheckCircle2 size={14} />,
   };
 
   return (
@@ -64,7 +65,7 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
           {/* Plain Language Explanation */}
           <div className="clause-section">
             <div className="section-label">
-              🗣️ What This Means
+              <MessageCircle size={14} /> What This Means
             </div>
             <p className="plain-language">{plain_language}</p>
           </div>
@@ -73,7 +74,7 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
           {typical_comparison && (
             <div className="clause-section">
               <div className="section-label">
-                📊 What's Typical
+                <BarChart2 size={14} /> What's Typical
               </div>
               <p className="comparison">{typical_comparison}</p>
             </div>
@@ -83,7 +84,7 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
           {suggestion && (
             <div className="clause-section">
               <div className="section-label">
-                💡 Suggested Action
+                <Lightbulb size={14} /> Suggested Action
               </div>
               <p className="suggestion">{suggestion}</p>
             </div>
@@ -91,23 +92,23 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
 
           {/* Actions */}
           <div className="clause-actions">
-            <button 
+            <button
               className="btn btn-secondary btn-small"
               onClick={(e) => {
                 e.stopPropagation();
                 navigator.clipboard.writeText(text);
               }}
             >
-              📋 Copy Text
+              <Copy size={14} /> Copy Text
             </button>
-            <button 
+            <button
               className="btn btn-secondary btn-small"
               onClick={(e) => {
                 e.stopPropagation();
                 onClick();
               }}
             >
-              📍 Jump to Page
+              <MapPin size={14} /> Jump to Page
             </button>
           </div>
         </div>
@@ -115,7 +116,7 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
 
       {/* Expand Indicator */}
       <div className="expand-indicator">
-        {isExpanded ? '▲' : '▼'}
+        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Zap, UploadCloud, PlayCircle, FileText, Upload, Sparkles,
   ShieldCheck, Home, Briefcase, Stethoscope, Smartphone,
-  Handshake, PieChart, Github, Twitter, Linkedin
+  Handshake, PieChart, Github, Twitter, Linkedin, Brain, MessageSquare, Scale, Mic
 } from 'lucide-react';
 
 /**
@@ -49,6 +49,7 @@ export default function LandingPage() {
             Upload contracts, leases, insurance policies, or terms of service.
             Instantly understand what it really says, what's risky, and what to do about it.
           </p>
+          <p className="hero-trust"><ShieldCheck size={14} /> Your documents are never stored permanently</p>
           <div className="hero-cta">
             <button
               className="btn btn-primary btn-large"
@@ -136,6 +137,46 @@ export default function LandingPage() {
           <div className="doc-item">
             <PieChart size={18} className="doc-icon text-red" />
             <span>Financial Agreements</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Why ClearClause */}
+      <section className="why-clearclause">
+        <div className="section-header">
+          <span className="section-subtitle">Why ClearClause</span>
+          <h2>What sets us apart</h2>
+        </div>
+        <div className="why-grid">
+          <div className="why-card">
+            <div className="why-icon"><Brain size={28} /></div>
+            <h3>AI Clause Classification</h3>
+            <p>Gemini AI categorizes every clause into risk categories — rights given up, one-sided terms, financial impact, and missing protections.</p>
+            <span className="why-badge">Powered by Gemini</span>
+          </div>
+          <div className="why-card">
+            <div className="why-icon"><MessageSquare size={28} /></div>
+            <h3>Document Chat</h3>
+            <p>Ask natural-language questions about your contract. "What are my termination rights?" — get instant, cited answers.</p>
+            <span className="why-badge">Context-Aware AI</span>
+          </div>
+          <div className="why-card">
+            <div className="why-icon"><Mic size={28} /></div>
+            <h3>Voice Summary</h3>
+            <p>Listen to an AI-narrated audio summary of your document's key findings — perfect for on-the-go review.</p>
+            <span className="why-badge">Deepgram Aura-2 TTS</span>
+          </div>
+          <div className="why-card">
+            <div className="why-icon"><Scale size={28} /></div>
+            <h3>Fairness Comparison</h3>
+            <p>Compare every clause against industry standards. See exactly where your contract deviates from what's typical.</p>
+            <span className="why-badge">Industry Benchmarks</span>
+          </div>
+          <div className="why-card">
+            <div className="why-icon" style={{ color: 'var(--success)' }}><ShieldCheck size={28} /></div>
+            <h3>Privacy-First</h3>
+            <p>Your documents are encrypted during transfer and automatically purged after analysis. We never store or train on your data.</p>
+            <span className="why-badge" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.2)', color: 'var(--success)' }}>Auto-Purge in 30 min</span>
           </div>
         </div>
       </section>
