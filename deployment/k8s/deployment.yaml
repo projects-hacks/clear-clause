@@ -1,0 +1,112 @@
+# Kubernetes Deployment for Akamai LKE
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clearclause-backend
+  labels:
+    app: clearclause
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: clearclause
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: clearclause
+        component: backend
+    spec:
+      containers:
+      - name: backend
+        image: clearclause-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: clearclause-secrets
+              key: gemini-api-key
+        - name: APRYSE_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: clearclause-secrets
+              key: apryse-license-key
+        - name: DEEPGRAM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: clearclause-secrets
+              key: deepgram-api-key
+        - name: FRONTEND_URL
+          value: "https://clearclause.vercel.app"
+        - name: MAX_FILE_SIZE_MB
+          value: "50"
+        - name: MAX_CONCURRENT_ANALYSES
+          value: "5"
+        - name: GEMINI_REQUESTS_PER_MINUTE
+          value: "8"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clearclause-backend
+  labels:
+    app: clearclause
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: clearclause
+    component: backend
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clearclause-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  rules:
+  - host: api.clearclause.app
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: clearclause-backend
+            port:
+              number: 80
