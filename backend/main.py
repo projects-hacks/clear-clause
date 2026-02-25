@@ -75,17 +75,19 @@ app = FastAPI(
 
 # CORS middleware - allow all origins for development
 # In production, restrict to specific domains
+# Note: allow_credentials=True with allow_origins=["*"] is invalid per CORS spec
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "*",  # Allow all origins for development
         "http://localhost:5173",
+        "http://localhost:5174",
         "http://127.0.0.1:5173",
         "https://clearclause.vercel.app",
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Session-ID"],
 )
 
 
