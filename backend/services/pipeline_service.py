@@ -6,15 +6,102 @@ Coordinates OCR → AI Analysis → Result packaging with progress tracking.
 import asyncio
 import json
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import structlog
 
 from services.session_manager import SessionManager, SessionStatus as SessionStatusEnum
-from services.ocr_service import extract_text_with_apryse
+from services.ocr_service import extract_text_with_apryse, OCRResult
 from services.analysis_service import analyze_document_with_gemini
 from core.exceptions import AnalysisError, OCRError, AIAnalysisError
 
 logger = structlog.get_logger()
+
+
+def match_clause_positions(
+    analysis_result,
+    ocr_result: OCRResult,
+) -> None:
+    """
+    Match clause text against OCR word positions to compute bounding boxes.
+
+    For each clause:
+    1. Search OCR words for subsequences matching the clause text
+    2. Compute union bounding box of matched words
+    3. Update clause.position and clause.page_number
+
+    Modifies analysis_result.clauses in place.
+    """
+    # Build a searchable index of words by page
+    words_by_page: Dict[int, List[Dict[str, Any]]] = {}
+
+    for page in ocr_result.pages:
+        words_by_page[page.page_number] = [
+            {"text": w.text.lower().strip(), "bbox": w.bbox}
+            for w in page.words
+        ]
+
+    # Process each clause
+    for clause in analysis_result.clauses:
+        clause_text = clause.text.lower().strip()
+
+        # Try to find matching words
+        best_match = None
+        best_match_score = 0
+
+        for page_num, page_words in words_by_page.items():
+            # Simple substring matching - look for clause text in page words
+            page_text = " ".join(w["text"] for w in page_words)
+
+            if clause_text in page_text:
+                # Find the words that match
+                clause_words = clause_text.split()
+                if len(clause_words) < 3:
+                    continue  # Too short for reliable matching
+
+                # Search for sequence of matching words
+                for i in range(len(page_words) - len(clause_words) + 1):
+                    match_count = 0
+                    for j, clause_word in enumerate(clause_words):
+                        if clause_word in page_words[i + j]["text"]:
+                            match_count += 1
+
+                    match_score = match_count / len(clause_words)
+
+                    if match_score > best_match_score and match_score > 0.7:
+                        best_match_score = match_score
+                        # Compute union bounding box
+                        matched_words = page_words[i:i + len(clause_words)]
+                        if matched_words:
+                            x1 = min(w["bbox"]["x1"] for w in matched_words)
+                            y1 = min(w["bbox"]["y1"] for w in matched_words)
+                            x2 = max(w["bbox"]["x2"] for w in matched_words)
+                            y2 = max(w["bbox"]["y2"] for w in matched_words)
+
+                            best_match = {
+                                "page_number": page_num,
+                                "position": {
+                                    "x1": x1,
+                                    "y1": y1,
+                                    "x2": x2,
+                                    "y2": y2
+                                }
+                            }
+
+        # Update clause with position if found
+        if best_match:
+            clause.page_number = best_match["page_number"]
+            clause.position = best_match["position"]
+        else:
+            # Fallback: use default position (top of page 1)
+            clause.page_number = 1
+            clause.position = {"x1": 72, "y1": 100, "x2": 540, "y2": 150}
+
+        logger.debug(
+            "Clause position matched",
+            clause_id=clause.clause_id,
+            page=clause.page_number,
+            match_score=best_match_score
+        )
 
 
 async def run_analysis_pipeline(
@@ -91,7 +178,11 @@ async def run_analysis_pipeline(
                 document_name=session_manager._sessions[session_id].document_name if session_id in session_manager._sessions else "document.pdf",
                 session_id=session_id,
             )
-            
+
+            # Match clause positions using OCR word data
+            logger.info("Matching clause positions...", session_id=session_id)
+            match_clause_positions(analysis_result, ocr_result)
+
             # Calculate flagged clause count
             flagged_count = sum(
                 1 for clause in analysis_result.clauses
