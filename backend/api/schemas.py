@@ -154,7 +154,6 @@ class SessionStatus(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request for document-aware chat."""
-    session_id: str = Field(description="Session ID of analyzed document")
     question: str = Field(description="User's question about the document")
     max_tokens: int = Field(default=512, ge=64, le=2048)
     
@@ -162,7 +161,6 @@ class ChatRequest(BaseModel):
         "json_schema_extra": {
             "examples": [
                 {
-                    "session_id": "abc123-def456",
                     "question": "What are my termination rights?",
                     "max_tokens": 512
                 }
@@ -182,7 +180,6 @@ class ChatResponse(BaseModel):
 
 class VoiceSummaryRequest(BaseModel):
     """Request for TTS voice summary generation."""
-    session_id: str = Field(description="Session ID of analyzed document")
     text: str = Field(description="Summary text to convert to speech")
     voice: str = Field(default="aura-asteria-en", description="Voice model")
     
@@ -190,7 +187,6 @@ class VoiceSummaryRequest(BaseModel):
         "json_schema_extra": {
             "examples": [
                 {
-                    "session_id": "abc123-def456",
                     "text": "This lease contains 12 flagged clauses. Top concerns include...",
                     "voice": "aura-asteria-en"
                 }
