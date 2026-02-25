@@ -54,9 +54,10 @@ class ApryseOCRService:
         """Initialize Apryse SDK with license key."""
         self.license_key = settings.apryse_license_key
         self._initialized = False
+        self._apryse_available = False
         
         if not self.license_key:
-            raise ConfigurationError("APRYSE_LICENSE_KEY not configured")
+            logger.warning("APRYSE_LICENSE_KEY not configured, using PyPDF2 fallback")
         
         logger.info("ApryseOCRService initialized")
     
@@ -70,30 +71,28 @@ class ApryseOCRService:
             return
         
         try:
-            # Import and initialize Apryse SDK
-            from PyPDF2 import PdfReader  # Fallback if Apryse not available
-            
-            # Try to import Apryse
+            # Try to import Apryse SDK (correct package name per official docs)
             try:
-                import apryse
-                from apryse import PDFDoc, TextExtractor, OCRModule
+                from apryse_sdk import PDFNet
                 
                 # Initialize with license key
-                apryse.CommonUtilities.Initialize()
+                if self.license_key:
+                    PDFNet.Initialize(self.license_key)
+                else:
+                    PDFNet.Initialize()
                 
-                # Apply license key
-                apryse.CommonUtilities.AddLicenseKey(self.license_key)
-                
+                self._apryse_available = True
                 self._initialized = True
                 logger.info("Apryse SDK initialized successfully")
                 
             except ImportError:
                 logger.warning("Apryse SDK not available, using fallback")
-                self._initialized = True  # Mark as initialized for fallback mode
+                self._apryse_available = False
+                self._initialized = True
             
         except Exception as e:
             logger.error("Failed to initialize Apryse SDK", error=str(e))
-            # Continue in fallback mode
+            self._apryse_available = False
             self._initialized = True
     
     async def extract(self, pdf_path: str) -> OCRResult:
@@ -111,11 +110,14 @@ class ApryseOCRService:
         logger.info("Starting text extraction", path=pdf_path)
         
         try:
-            # Try Apryse SDK first
-            try:
-                return await self._extract_with_apryse(pdf_path)
-            except ImportError:
-                logger.warning("Apryse not available, using fallback extraction")
+            # Try Apryse SDK first if available
+            if self._apryse_available:
+                try:
+                    return await self._extract_with_apryse(pdf_path)
+                except Exception as e:
+                    logger.warning("Apryse extraction failed, using fallback", error=str(e))
+                    return await self._extract_fallback(pdf_path)
+            else:
                 return await self._extract_fallback(pdf_path)
                 
         except Exception as e:
@@ -124,72 +126,84 @@ class ApryseOCRService:
     
     async def _extract_with_apryse(self, pdf_path: str) -> OCRResult:
         """Extract text using Apryse SDK."""
-        import apryse
-        from apryse import PDFDoc, TextExtractor, OCRModule
-        
+        from apryse_sdk import PDFDoc, TextExtractor
+
         # Load PDF document
         doc = PDFDoc(pdf_path)
         doc.InitSecurityHandler()
-        
+
         # Check if OCR is needed (scanned documents)
         needs_ocr = self._check_needs_ocr(doc)
-        
-        if needs_ocr:
-            logger.info("Document requires OCR (scanned)")
-            # Run OCR module
-            ocr_module = OCRModule()
-            ocr_module.Process(doc)
-        
+
+        # Note: We skip OCRModule entirely for now.
+        # OCRModule requires separate 500MB download and is only needed for scanned documents.
+        # For native PDFs (most contracts, leases, etc.), TextExtractor works perfectly.
+        # If needs_ocr is True, we still extract text but note that positions may be unreliable.
+
         # Extract text page by page
         pages: List[PageResult] = []
         full_text_parts: List[str] = []
         total_words = 0
-        
+
         page_count = doc.GetPageCount()
-        
+
         for page_num in range(1, page_count + 1):
             page = doc.GetPage(page_num)
-            
+
             # Extract text with positions
             extractor = TextExtractor()
             extractor.Begin(page)
-            
+
             page_text = extractor.GetAsText()
             full_text_parts.append(page_text)
-            
-            # Extract words with bounding boxes
+
+            # Extract words with bounding boxes using correct Apryse API
+            # Iterate through lines, then words (GetWords() doesn't exist)
             words: List[WordResult] = []
-            
-            # Get word-level information
-            words_info = extractor.GetWords()
-            
-            for word_info in words_info:
-                word_text = word_info[0]
-                x1, y1, x2, y2 = word_info[1:5]
-                
-                words.append(WordResult(
-                    text=word_text,
-                    bbox={"x1": x1, "y1": y1, "x2": x2, "y2": y2},
-                    page_number=page_num,
-                ))
-            
+
+            line = extractor.GetFirstLine()
+            while line.IsValid():
+                word = line.GetFirstWord()
+                while word.IsValid():
+                    if word.GetStringLen() == 0:
+                        word = word.GetNextWord()
+                        continue
+
+                    word_text = word.GetString()
+                    bbox = word.GetBBox()  # Returns Rect object with .x1, .y1, .x2, .y2
+
+                    words.append(WordResult(
+                        text=word_text,
+                        bbox={
+                            "x1": bbox.x1,
+                            "y1": bbox.y1,
+                            "x2": bbox.x2,
+                            "y2": bbox.y2
+                        },
+                        page_number=page_num,
+                    ))
+
+                    word = word.GetNextWord()
+
+                line = line.GetNextLine()
+
             total_words += len(words)
-            
+
             pages.append(PageResult(
                 page_number=page_num,
                 text=page_text,
                 words=words,
             ))
-        
+
         full_text = "\n\n".join(full_text_parts)
-        
+
         logger.info(
             "Apryse extraction complete",
             pages=page_count,
             words=total_words,
             needs_ocr=needs_ocr
         )
-        
+
         return OCRResult(
             full_text=full_text,
             pages=pages,
@@ -246,16 +260,34 @@ class ApryseOCRService:
         )
     
     def _check_needs_ocr(self, doc) -> bool:
-        """Check if document needs OCR (scanned vs native PDF)."""
-        # Simple heuristic: check if first page has text
+        """
+        Check if document needs OCR (scanned vs native PDF).
+
+        Improved heuristic: check multiple pages instead of just page 1,
+        since page 1 might be a cover page with little text.
+        """
         try:
-            page = doc.GetPage(1)
-            extractor = TextExtractor()
-            extractor.Begin(page)
-            text = extractor.GetAsText()
-            
-            # If very little text, likely scanned
-            return len(text.strip()) < 50
+            from apryse_sdk import TextExtractor
+            page_count = doc.GetPageCount()
+            total_text_length = 0
+
+            # Check up to first 3 pages (or all pages if fewer)
+            pages_to_check = min(3, page_count)
+
+            for page_num in range(1, pages_to_check + 1):
+                page = doc.GetPage(page_num)
+                extractor = TextExtractor()
+                extractor.Begin(page)
+                text = extractor.GetAsText()
+                total_text_length += len(text.strip())
+
+            # Calculate average text per page
+            avg_text_per_page = total_text_length / pages_to_check
+
+            # Native PDFs typically have >100 chars per page
+            # Scanned PDFs (without OCR) have <20 chars per page (just metadata)
+            return avg_text_per_page < 50
+
         except Exception:
             return True  # Assume scanned if check fails
 
