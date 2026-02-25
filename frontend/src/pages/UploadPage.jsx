@@ -4,11 +4,11 @@
  * Drag-and-drop file upload with validation.
  * Supports multiple concurrent document uploads.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentAnalysis } from '../hooks/useAnalysis';
 import { useAnalysis } from '../context/AnalysisContext';
-import { FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Home, Handshake, Search, Loader2, ArrowLeft, Zap } from 'lucide-react';
+import { FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Home, Handshake, Search, Loader2, ArrowLeft, Zap, Brain, Volume2, Scale, ShieldCheck } from 'lucide-react';
 
 /**
  * Upload Page
@@ -16,7 +16,7 @@ import { FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Home, Handsh
 export default function UploadPage() {
   const navigate = useNavigate();
   const { startAnalysis, isUploading, error, clearError } = useDocumentAnalysis();
-  const { addSession, setActiveSession } = useAnalysis();
+  const { sessions, addSession, setActiveSession, removeSession } = useAnalysis();
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(null);
@@ -81,11 +81,23 @@ export default function UploadPage() {
   const handleAnalyze = async () => {
     if (!selectedFile) return;
 
+    // Prevent duplicate uploads
+    const isDuplicate = sessions.some(
+      s => s.document_name === selectedFile.name &&
+        !['complete', 'error'].includes(s.status)
+    );
+    if (isDuplicate) {
+      setError(`"${selectedFile.name}" is already being processed.`);
+      return;
+    }
+
     try {
       const sessionId = await startAnalysis(selectedFile);
-
-      // Navigate to analysis page
-      navigate(`/analysis/${sessionId}`);
+      setSelectedFile(null); // Clear for next upload
+      // Navigate to analysis page to show progress steps
+      if (sessionId) {
+        navigate(`/analysis/${sessionId}`);
+      }
     } catch (err) {
       console.error('Analysis failed:', err);
     }
@@ -116,6 +128,21 @@ export default function UploadPage() {
     }
   };
 
+  // Warn before closing tab if analyses are in progress
+  useEffect(() => {
+    const hasInProgress = sessions.some(
+      s => !['complete', 'error'].includes(s.status)
+    );
+    const handleBeforeUnload = (e) => {
+      if (hasInProgress) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [sessions]);
+
   return (
     <div className="upload-page">
       {/* Navigation */}
@@ -134,6 +161,34 @@ export default function UploadPage() {
         </button>
       </nav>
 
+      {/* Page Title */}
+      <div className="upload-title-section">
+        <h1 className="upload-title">Upload & Analyze</h1>
+        <p className="upload-subtitle">
+          Upload any contract, lease, or legal document. Our AI reads every clause,
+          flags risks, and gives you plain-language explanations in under 60 seconds.
+        </p>
+      </div>
+
+      {/* Feature Highlights */}
+      <div className="feature-highlights">
+        <div className="feature-card">
+          <div className="feature-icon blue"><Brain size={24} /></div>
+          <h4>AI-Powered Analysis</h4>
+          <p>Gemini AI classifies every clause by risk category and severity level</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon purple"><Volume2 size={24} /></div>
+          <h4>Voice Summary</h4>
+          <p>Listen to an AI-narrated summary of findings via Deepgram TTS</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon green"><Scale size={24} /></div>
+          <h4>Fairness Compare</h4>
+          <p>See how your document stacks up against industry-standard contracts</p>
+        </div>
+      </div>
+
       {/* Main Content */}
       <main className="upload-content">
         {/* Drop Zone */}
@@ -149,6 +204,7 @@ export default function UploadPage() {
               <h2>Drag & drop your document</h2>
               <p>or click to browse</p>
               <p className="drop-zone-hint">Supports: PDF (up to 50MB)</p>
+              <p className="drop-zone-security"><ShieldCheck size={14} /> Encrypted in transit · Auto-deleted after 30 min</p>
               <input
                 type="file"
                 accept=".pdf,application/pdf"
@@ -227,6 +283,66 @@ export default function UploadPage() {
             </button>
           </div>
         </div>
+
+        {/* Processing Queue */}
+        {sessions.length > 0 && (
+          <div className="processing-queue">
+            <h3>
+              <Loader2 size={16} className={sessions.some(s => s.status !== 'complete' && s.status !== 'error') ? 'spinner' : ''} />
+              Processing Queue
+              {sessions.some(s => ['complete', 'error'].includes(s.status)) && (
+                <button
+                  className="btn btn-secondary btn-small"
+                  style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)' }}
+                  onClick={() => {
+                    sessions.filter(s => ['complete', 'error'].includes(s.status))
+                      .forEach(s => removeSession(s.session_id));
+                  }}
+                >
+                  Clear Completed
+                </button>
+              )}
+            </h3>
+            <div className="queue-list">
+              {[...sessions].reverse().map(session => (
+                <div key={session.session_id} className={`queue-item ${session.status}`}>
+                  <div className="queue-item-left">
+                    <FileText size={16} className="queue-file-icon" />
+                    <div className="queue-item-info">
+                      <span className="queue-doc-name">{session.document_name}</span>
+                      <span className="queue-status-text">
+                        {session.status === 'complete' ? 'Analysis complete' :
+                          session.status === 'error' ? session.message || 'Failed' :
+                            session.message || 'Processing...'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="queue-item-right">
+                    {session.status === 'complete' ? (
+                      <button
+                        className="btn btn-primary btn-small"
+                        onClick={() => navigate(`/analysis/${session.session_id}`)}
+                      >
+                        <CheckCircle2 size={14} /> View Results
+                      </button>
+                    ) : session.status === 'error' ? (
+                      <span className="queue-error-badge">
+                        <AlertTriangle size={14} /> Failed
+                      </span>
+                    ) : (
+                      <div className="queue-progress-bar-wrapper">
+                        <div className="queue-progress-bar">
+                          <div className="queue-progress-fill" style={{ width: `${session.progress}%` }} />
+                        </div>
+                        <span className="queue-percent">{session.progress}%</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
