@@ -20,7 +20,7 @@ import ChatPanel from '../components/chat/ChatPanel';
 import VoiceSummary from '../components/voice/VoiceSummary';
 
 // Icons
-import { ArrowLeft, Volume2, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Volume2, LayoutDashboard, MessageSquare, Upload, FileSearch, Brain, CheckCircle2, Zap, AlertTriangle } from 'lucide-react';
 
 /**
  * Analysis Page
@@ -35,6 +35,7 @@ export default function AnalysisPage() {
 
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'chat'
   const [showVoice, setShowVoice] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   // Find current session
   const session = sessions.find(s => s.session_id === sessionId);
@@ -46,13 +47,17 @@ export default function AnalysisPage() {
     }
   }, [sessionId, setActiveSession]);
 
+  // Derive status as a primitive to avoid infinite re-render loops
+  const sessionStatus = session?.status;
+  const sessionCreatedAt = session?.created_at;
+
   // Poll for updates if analysis in progress
   useEffect(() => {
-    if (!session) return;
+    if (!sessionStatus) return;
 
-    const isInProgress = session.status === 'uploading' ||
-      session.status === 'extracting' ||
-      session.status === 'analyzing';
+    const isInProgress = sessionStatus === 'uploading' ||
+      sessionStatus === 'extracting' ||
+      sessionStatus === 'analyzing';
 
     if (isInProgress) {
       const interval = setInterval(async () => {
@@ -61,24 +66,40 @@ export default function AnalysisPage() {
         } catch (err) {
           console.error('Polling failed:', err);
         }
-      }, 2000); // Poll every 2 seconds
+      }, 2000);
 
       return () => clearInterval(interval);
     }
-  }, [session, sessionId, pollStatus]);
+  }, [sessionStatus, sessionId, pollStatus]);
+
+  // Timer for elapsed time
+  useEffect(() => {
+    if (!sessionStatus) return;
+    const isInProgress = !['complete', 'error'].includes(sessionStatus);
+    if (!isInProgress) return;
+    const startTime = sessionCreatedAt ? new Date(sessionCreatedAt).getTime() : Date.now();
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [sessionStatus, sessionCreatedAt]);
 
   // Loading state - session not found
   if (!session) {
     return (
       <div className="analysis-page loading">
+        <nav className="landing-nav">
+          <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
+            <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
+            <span className="brand-name">ClearClause</span>
+          </div>
+          <div className="nav-links"></div>
+        </nav>
         <div className="loading-state">
           <div className="spinner-large"></div>
           <h2>Loading analysis...</h2>
-          <p>Session not found</p>
-          <button
-            className="btn btn-primary"
-            onClick={() => navigate('/upload')}
-          >
+          <p style={{ color: 'var(--text-secondary)' }}>Waiting for session data...</p>
+          <button className="btn btn-primary" onClick={() => navigate('/upload')}>
             Upload New Document
           </button>
         </div>
@@ -86,43 +107,99 @@ export default function AnalysisPage() {
     );
   }
 
-  // Analysis in progress - show loading state
+  // Analysis in progress - show step-by-step progress
   if (session.status !== 'complete' && session.status !== 'error') {
+    const steps = [
+      { key: 'uploading', label: 'Uploading', desc: 'Receiving document...', icon: Upload },
+      { key: 'extracting', label: 'Extracting', desc: 'OCR text extraction...', icon: FileSearch },
+      { key: 'analyzing', label: 'Analyzing', desc: 'AI clause classification...', icon: Brain },
+      { key: 'complete', label: 'Complete', desc: 'Results ready!', icon: CheckCircle2 },
+    ];
+    const currentStepIndex = steps.findIndex(s => s.key === session.status);
     return (
       <div className="analysis-page loading">
-        <header className="analysis-header">
-          <button
-            className="btn btn-secondary back-btn"
-            onClick={() => navigate('/')}
-          >
+        {/* Branded Navbar */}
+        <nav className="landing-nav">
+          <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
+            <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
+            <span className="brand-name">ClearClause</span>
+          </div>
+          <div className="nav-links"></div>
+          <button className="btn btn-secondary" onClick={() => navigate('/upload')}>
             <ArrowLeft size={16} /> Back
           </button>
-          <h2>{session.document_name}</h2>
-          <div className="session-status">
-            <span className={`status-indicator ${session.status}`}></span>
-            {session.status}
+        </nav>
+        {/* Progress Card */}
+        <div className="progress-card">
+          <h2 className="progress-title">Analyzing: {session.document_name}</h2>
+          <p className="progress-subtitle">Our AI is reading every clause — this takes about 30–60 seconds.</p>
+          {/* Step Indicators */}
+          <div className="progress-steps">
+            {steps.map((step, index) => {
+              const StepIcon = step.icon;
+              const isActive = index === currentStepIndex;
+              const isComplete = index < currentStepIndex;
+              const stepClass = isComplete ? 'complete' : isActive ? 'active' : 'pending';
+              return (
+                <React.Fragment key={step.key}>
+                  <div className={`progress-step ${stepClass}`}>
+                    <div className={`step-circle ${stepClass}`}>
+                      {isComplete ? <CheckCircle2 size={20} /> : <StepIcon size={20} />}
+                    </div>
+                    <span className="step-label">{step.label}</span>
+                    <span className="step-desc">{isActive ? session.message : step.desc}</span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className={`step-connector ${isComplete ? 'complete' : ''}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
-        </header>
-
-        <main className="analysis-content">
-          <div className="progress-container">
-            <div className="progress-info">
-              <span>{session.message}</span>
-              <span>{session.progress}%</span>
-            </div>
+          {/* Progress Bar */}
+          <div className="progress-bar-container">
             <div className="progress-bar">
               <div
                 className="progress-bar-fill"
                 style={{ width: `${session.progress}%` }}
-              ></div>
+              />
             </div>
+            <span className="progress-percent">{session.progress}%</span>
           </div>
+          {/* Time Info */}
+          <div className="progress-time-info">
+            <span>Elapsed: {Math.floor(elapsedTime / 60)}:{String(elapsedTime % 60).padStart(2, '0')}</span>
+            <span>Usually completes in ~60 seconds</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-          {/* Skeleton Viewer */}
-          <div className="viewer-skeleton">
-            <div className="skeleton" style={{ height: '100%' }}></div>
+  // Error state
+  if (session.status === 'error') {
+    return (
+      <div className="analysis-page loading">
+        <nav className="landing-nav">
+          <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
+            <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
+            <span className="brand-name">ClearClause</span>
           </div>
-        </main>
+          <div className="nav-links"></div>
+        </nav>
+        <div className="progress-card error-card">
+          <AlertTriangle size={48} color="var(--error)" />
+          <h2 className="progress-title">Analysis Failed</h2>
+          <p className="progress-subtitle">{session.message || 'An unexpected error occurred during analysis.'}</p>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
+            <button className="btn btn-primary" onClick={() => navigate('/upload')}>
+              Try Again
+            </button>
+            <button className="btn btn-secondary" onClick={() => navigate('/')}>
+              Go Home
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -133,20 +210,20 @@ export default function AnalysisPage() {
       {/* Header */}
       <header className="analysis-header">
         <div className="header-left">
-          <button
-            className="btn btn-secondary back-btn"
-            onClick={() => navigate('/')}
-          >
-            <ArrowLeft size={16} /> Back
-          </button>
-          <h2>{session.document_name}</h2>
+          <nav className="landing-nav" style={{ borderBottom: 'none', padding: 0, background: 'transparent', position: 'relative' }}>
+            <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
+              <Zap className="logo-icon" size={24} color="var(--accent-primary)" />
+              <span className="brand-name">ClearClause</span>
+            </div>
+          </nav>
+          <span style={{ color: 'var(--surface-border)', margin: '0 var(--space-3)' }}>|</span>
+          <h2 style={{ fontSize: 'var(--text-base)', margin: 0 }}>{session.document_name}</h2>
           {session.result && (
             <span className="clause-count">
               {session.result.total_clauses} clauses · {session.result.flagged_clauses} flagged
             </span>
           )}
         </div>
-
         <div className="header-actions">
           <button
             className="btn btn-secondary"
