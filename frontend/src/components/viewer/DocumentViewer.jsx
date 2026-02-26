@@ -21,7 +21,7 @@ function getCategoryColor(category) {
 /**
  * Document Viewer
  */
-export default function DocumentViewer({ sessionId, clauses = [] }) {
+export default function DocumentViewer({ sessionId, clauses = [], selectedClauseId }) {
   const viewerRef = useRef(null);
   const instanceRef = useRef(null);
   const [isViewerReady, setIsViewerReady] = useState(false);
@@ -44,6 +44,7 @@ export default function DocumentViewer({ sessionId, clauses = [] }) {
             initialDoc: `${API_BASE_URL}/documents/${sessionId}`,
             licenseKey: import.meta.env.VITE_APRYSE_KEY || '',
             disableWebsockets: true,
+            isReadOnly: true,
           },
           viewerRef.current
         );
@@ -52,6 +53,27 @@ export default function DocumentViewer({ sessionId, clauses = [] }) {
 
         instanceRef.current = instance;
 
+        // Disable all editing functionality - viewer only
+        const { UI } = instance;
+
+        // Use disableElements API to hide editing toolbar groups
+        // This is the correct WebViewer v10+ API for hiding elements
+        UI.disableElements([
+          'toolbarGroup-Insert',
+          'toolbarGroup-Edit',
+          'toolbarGroup-Annotate',
+          'annotationPopup',
+          'annotationNotePopup',
+          'textPopup',
+          'clipboardPopup',
+          'redactionPopup',
+          'viewControlsOverlay',
+          'printModal',
+          'passwordModal',
+          'annotationCreateConnector',
+          'leftPanel', // Specifically hide the left panel since we show data on the right
+        ]);
+
         // WebViewer v10+ API: use Core namespace
         const { documentViewer } = instance.Core;
 
@@ -59,6 +81,14 @@ export default function DocumentViewer({ sessionId, clauses = [] }) {
           console.log('Document loaded in WebViewer');
           if (isMounted) {
             setIsViewerReady(true);
+          }
+        });
+
+        // Handle document load errors (e.g., session expired / 404)
+        documentViewer.addEventListener('loaderror', (err) => {
+          console.error('Document load error:', err);
+          if (isMounted) {
+            setError('Document session expired or not found. Please re-upload your document.');
           }
         });
 
@@ -147,6 +177,24 @@ export default function DocumentViewer({ sessionId, clauses = [] }) {
       console.error('Failed to add annotations:', err);
     }
   };
+
+  // Jump to selected clause annotation
+  useEffect(() => {
+    if (!isViewerReady || !instanceRef.current || !selectedClauseId) return;
+
+    try {
+      const { annotationManager } = instanceRef.current.Core;
+      const annots = annotationManager.getAnnotationsList();
+      const targetAnnot = annots.find(a => a.getCustomData('clauseId') === selectedClauseId);
+
+      if (targetAnnot) {
+        annotationManager.jumpToAnnotation(targetAnnot);
+        annotationManager.selectAnnotation(targetAnnot);
+      }
+    } catch (err) {
+      console.error('Failed to jump to annotation:', err);
+    }
+  }, [isViewerReady, selectedClauseId]);
 
   // Error state
   if (error) {
