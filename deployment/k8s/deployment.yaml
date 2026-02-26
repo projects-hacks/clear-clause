@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: rajeevdev17/clearclause-backend:latest
+        image: maverickrajeev/clearclause-backend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000

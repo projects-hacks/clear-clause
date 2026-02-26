@@ -50,3 +50,4 @@ coverage.xml
 _svn/
 .minimax
 .minimax/*
+deployment/k8s/clearclause-cluster-kubeconfig.yaml
