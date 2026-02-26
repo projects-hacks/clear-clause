@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api.clearclause.app/:path*"
+      "destination": "http://104.200.26.15/api/:path*"
     }
   ]
 }

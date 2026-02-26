@@ -85,7 +85,7 @@ metadata:
     app: clearclause
     component: backend
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
   - port: 80
     targetPort: 8000
