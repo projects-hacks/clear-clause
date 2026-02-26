@@ -135,7 +135,25 @@ export async function getAnalysisStatus(sessionId) {
   const response = await fetch(`${API_BASE_URL}/analyze/${sessionId}`);
 
   if (!response.ok) {
-    throw new Error('Session not found or expired');
+    // Differentiate between 404 (session gone) and 429 (rate limited)
+    if (response.status === 429) {
+      const error = new Error('Too many requests. Slowing down...');
+      error.code = 'rate_limited';
+      throw error;
+    }
+
+    let message = 'Analysis session not found or has expired. Please upload your document again.';
+    try {
+      const body = await response.json();
+      if (body?.detail) {
+        message = body.detail;
+      }
+    } catch {
+      // ignore JSON parse errors, fall back to default message
+    }
+    const error = new Error(message);
+    error.code = response.status === 404 ? 'session_not_found' : 'api_error';
+    throw error;
   }
 
   return response.json();
@@ -218,7 +236,22 @@ export async function generateSpeech(sessionId, text) {
   });
 
   if (!response.ok) {
-    throw new Error('Speech generation failed');
+    let message = 'Speech generation failed';
+    try {
+      const body = await response.json();
+      if (body?.error === 'session_not_found') {
+        message = 'This analysis session has expired. Please upload your document again.';
+      } else if (body?.detail) {
+        message = body.detail;
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+    const error = new Error(message);
+    if (message.includes('expired')) {
+      error.code = 'session_not_found';
+    }
+    throw error;
   }
 
   return response.blob();
@@ -241,8 +274,32 @@ export async function transcribeAudio(sessionId, audioBlob) {
   });
 
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Transcription failed: ${errorBody}`);
+    let raw = '';
+    let message = 'Transcription failed';
+    try {
+      raw = await response.text();
+      try {
+        const body = JSON.parse(raw);
+        if (body?.error === 'session_not_found') {
+          message = 'This analysis session has expired. Please upload your document again.';
+        } else if (body?.detail) {
+          message = body.detail;
+        }
+      } catch {
+        // non‑JSON body, fall back to raw text
+        if (raw) {
+          message = `Transcription failed: ${raw}`;
+        }
+      }
+    } catch {
+      // ignore read errors
+    }
+
+    const error = new Error(message);
+    if (message.includes('expired')) {
+      error.code = 'session_not_found';
+    }
+    throw error;
   }
 
   const data = await response.json();

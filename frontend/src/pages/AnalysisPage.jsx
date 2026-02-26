@@ -21,7 +21,7 @@ import AIAssistantPanel from '../components/chat/AIAssistantPanel';
 import AnalysisOnboarding from '../components/common/AnalysisOnboarding';
 
 // Icons
-import { ArrowLeft, LayoutDashboard, MessageSquare, Upload, FileSearch, Brain, CheckCircle2, Zap, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, MessageSquare, Upload, FileSearch, Brain, CheckCircle2, Zap, AlertTriangle, ShieldCheck } from 'lucide-react';
 import ThemeToggle from '../components/common/ThemeToggle';
 
 /**
@@ -30,7 +30,7 @@ import ThemeToggle from '../components/common/ThemeToggle';
 export default function AnalysisPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { sessions, getActiveSession, setActiveSession, updateSession, addSession } = useAnalysis();
+  const { sessions, getActiveSession, setActiveSession, updateSession, addSession, removeSession } = useAnalysis();
   const { pollStatus } = useDocumentAnalysis();
   const chat = useChat();
 
@@ -47,6 +47,9 @@ export default function AnalysisPage() {
 
   // Try to load session from backend if not in context
   useEffect(() => {
+    // If it's already failed to load, don't infinitely retry
+    if (sessionError) return;
+
     if (!session && sessionId && !sessionLoading) {
       setSessionLoading(true);
       getAnalysisStatus(sessionId)
@@ -60,14 +63,24 @@ export default function AnalysisPage() {
             created_at: status.created_at,
             result: status.result || null,
           });
+          setSessionLoading(false);
         })
         .catch(err => {
           console.error('Failed to load session:', err);
-          setSessionError(err.message);
-        })
-        .finally(() => setSessionLoading(false));
+          setSessionError(
+            err.code === 'session_not_found'
+              ? 'This analysis has expired. Please upload your document again to start a fresh review.'
+              : 'Failed to load analysis session. Please try refreshing the page.'
+          );
+          // Proactively remove stale session from local state if it exists
+          if (err.code === 'session_not_found' && sessionId) {
+            removeSession(sessionId);
+          }
+          // Intentionally do NOT reset sessionLoading(false) immediately. 
+          // Setting the error will block it from retrying.
+        });
     }
-  }, [session, sessionId, sessionLoading, addSession]);
+  }, [session, sessionId, sessionLoading, addSession, sessionError, removeSession]);
 
   // Set as active session on mount
   useEffect(() => {
@@ -80,24 +93,46 @@ export default function AnalysisPage() {
   const sessionStatus = session?.status;
   const sessionCreatedAt = session?.created_at;
 
-  // Poll for updates if analysis in progress
+  // Poll for updates if analysis in progress (with exponential backoff on errors)
   useEffect(() => {
     if (!sessionStatus) return;
 
     const isInProgress = sessionStatus === 'uploading' ||
       sessionStatus === 'extracting' ||
+      sessionStatus === 'redacting' ||
       sessionStatus === 'analyzing';
 
     if (isInProgress) {
-      const interval = setInterval(async () => {
+      let consecutiveErrors = 0;
+      let cancelled = false;
+
+      const poll = async () => {
+        if (cancelled) return;
         try {
           await pollStatus(sessionId);
+          consecutiveErrors = 0; // Reset on success
+          if (!cancelled) setTimeout(poll, 2000);
         } catch (err) {
-          console.error('Polling failed:', err);
+          consecutiveErrors++;
+          console.error(`Polling failed (attempt ${consecutiveErrors}):`, err);
+          if (consecutiveErrors >= 5) {
+            // Stop polling after 5 consecutive errors to prevent storm
+            console.error('Stopping poll after 5 consecutive failures');
+            return;
+          }
+          // Exponential backoff: 4s, 8s, 16s, 32s
+          const backoff = Math.min(4000 * Math.pow(2, consecutiveErrors - 1), 32000);
+          if (!cancelled) setTimeout(poll, backoff);
         }
-      }, 2000);
+      };
 
-      return () => clearInterval(interval);
+      // Start first poll after 2s
+      const initialTimer = setTimeout(poll, 2000);
+
+      return () => {
+        cancelled = true;
+        clearTimeout(initialTimer);
+      };
     }
   }, [sessionStatus, sessionId, pollStatus]);
 
@@ -185,6 +220,7 @@ export default function AnalysisPage() {
     const steps = [
       { key: 'uploading', label: 'Uploading', desc: 'Receiving document...', icon: Upload },
       { key: 'extracting', label: 'Extracting', desc: 'OCR text extraction...', icon: FileSearch },
+      { key: 'redacting', label: 'Redacting', desc: 'Masking personal information...', icon: ShieldCheck },
       { key: 'analyzing', label: 'Analyzing', desc: 'AI clause classification...', icon: Brain },
       { key: 'complete', label: 'Complete', desc: 'Results ready!', icon: CheckCircle2 },
     ];

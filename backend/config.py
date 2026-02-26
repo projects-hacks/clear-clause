@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     gemini_max_retries: int = 5
     
     # API Rate limiting (per IP)
-    rate_limit_per_minute: int = 30
-    rate_limit_burst: int = 10
+    rate_limit_per_minute: int = 120
+    rate_limit_burst: int = 30
     
     # Session Management
     session_ttl_minutes: int = 30
