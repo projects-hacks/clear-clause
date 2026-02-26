@@ -181,7 +181,8 @@ async def run_analysis_pipeline(
 
             # Match clause positions using OCR word data
             logger.info("Matching clause positions...", session_id=session_id)
-            match_clause_positions(analysis_result, ocr_result)
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, match_clause_positions, analysis_result, ocr_result)
 
             # Calculate flagged clause count
             flagged_count = sum(

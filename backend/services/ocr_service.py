@@ -5,6 +5,7 @@ Extracts text and layout information from PDF documents.
 Preserves word-level positions for annotation mapping.
 """
 import os
+import asyncio
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 import structlog
@@ -111,21 +112,22 @@ class ApryseOCRService:
         
         try:
             # Try Apryse SDK first if available
+            loop = asyncio.get_running_loop()
             if self._apryse_available:
                 try:
-                    return await self._extract_with_apryse(pdf_path)
+                    return await loop.run_in_executor(None, self._extract_with_apryse_sync, pdf_path)
                 except Exception as e:
                     logger.warning("Apryse extraction failed, using fallback", error=str(e))
-                    return await self._extract_fallback(pdf_path)
+                    return await loop.run_in_executor(None, self._extract_fallback_sync, pdf_path)
             else:
-                return await self._extract_fallback(pdf_path)
+                return await loop.run_in_executor(None, self._extract_fallback_sync, pdf_path)
                 
         except Exception as e:
             logger.error("Text extraction failed", path=pdf_path, error=str(e))
             raise OCRError(message=f"Failed to extract text: {str(e)}")
     
-    async def _extract_with_apryse(self, pdf_path: str) -> OCRResult:
-        """Extract text using Apryse SDK."""
+    def _extract_with_apryse_sync(self, pdf_path: str) -> OCRResult:
+        """Extract text using Apryse SDK (runs in executor)."""
         from apryse_sdk import PDFDoc, TextExtractor
 
         # Load PDF document
@@ -215,7 +217,9 @@ class ApryseOCRService:
             }
         )
     
-    async def _extract_fallback(self, pdf_path: str) -> OCRResult:
+    def _extract_fallback_sync(self, pdf_path: str) -> OCRResult:
+        """Extract text using PyPDF2 (runs in executor)."""
+        
         """
         Fallback text extraction using PyPDF2.
         
