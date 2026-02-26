@@ -35,19 +35,13 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
         
         client = DeepgramClient(api_key=api_key)
         
-        payload = {
-            "buffer": audio_bytes,
-            "mimetype": "audio/webm", # Default for browser MediaRecorder
-        }
-        
-        options = {
-            "model": "nova-2",
-            "language": "en",
-            "smart_format": True,
-            "punctuate": True,
-        }
-        
-        response = client.listen.v1.media.transcribe_file(payload, options)
+        response = client.listen.v1.media.transcribe_file(
+            request=audio_bytes,
+            model="nova-2",
+            language="en",
+            smart_format=True,
+            punctuate=True,
+        )
         
         transcript = response.results.channels[0].alternatives[0].transcript
         
