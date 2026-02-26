@@ -16,6 +16,10 @@ from config import get_settings
 from api.schemas import ChatResponse, AnalysisResult
 from core.rate_limiter import get_gemini_limiter
 from prompts.analysis_prompt import CHAT_SYSTEM_PROMPT, CHAT_USER_PROMPT
+from services.vector_store import (
+    is_vector_store_enabled,
+    get_top_clause_ids_for_question,
+)
 
 logger = structlog.get_logger()
 
@@ -86,6 +90,7 @@ async def chat_with_document(
     question: str,
     document_context: dict,
     max_tokens: int = 512,
+    session_id: str | None = None,
 ) -> ChatResponse:
     """
     Answer a question about an analyzed document.
@@ -140,8 +145,27 @@ async def _call_gemini_chat(
         # Prepare clauses summary for context
         clauses_summary: list[str] = []
         all_clauses = document_context.get('clauses', [])
-        # Focus on clauses that are likely relevant to this specific question
-        clauses = _select_relevant_clauses(question, all_clauses, max_clauses=15)
+
+        # Prefer semantic retrieval via vector store when available.
+        clauses: list[dict]
+        if session_id and is_vector_store_enabled():
+            try:
+                top_ids = await get_top_clause_ids_for_question(
+                    session_id=session_id,
+                    question=question,
+                    top_k=15,
+                )
+                id_set = set(top_ids)
+                clauses = [c for c in all_clauses if c.get("clause_id") in id_set]
+                # Fallback to keyword scoring if vector store returns nothing
+                if not clauses:
+                    clauses = _select_relevant_clauses(question, all_clauses, max_clauses=15)
+            except Exception as e:
+                logger.warning("Vector-based clause retrieval failed; falling back", error=str(e))
+                clauses = _select_relevant_clauses(question, all_clauses, max_clauses=15)
+        else:
+            # Keyword / severity-based retrieval (previous behaviour)
+            clauses = _select_relevant_clauses(question, all_clauses, max_clauses=15)
         for clause in clauses:
             clause_id = clause.get('clause_id', 'unknown')
             text = clause.get('text', '')  # Full text

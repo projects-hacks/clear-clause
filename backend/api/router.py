@@ -261,6 +261,7 @@ async def chat(
         question=request.question,
         document_context=session.result,
         max_tokens=request.max_tokens,
+        session_id=session.session_id,
     )
     
     return response

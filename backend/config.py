@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     
     # Logging
     log_level: str = "INFO"
+
+    # Vector store / embeddings (optional, for RAG-style chat)
+    # Example: postgresql+psycopg://user:pass@host:5432/dbname
+    vector_db_url: str | None = None
+    # Gemini text embedding model and output dimension
+    embedding_model: str = "text-embedding-004"
+    embedding_dimension: int = 768
     
     # Computed
     @property

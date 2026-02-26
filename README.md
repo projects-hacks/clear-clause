@@ -5,313 +5,210 @@
 ![TerraCode Convergence](https://img.shields.io/badge/TerraCode-Convergence-blue)
 ![Python](https://img.shields.io/badge/Python-3.11+-green)
 ![React](https://img.shields.io/badge/React-18-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
+![AI](https://img.shields.io/badge/Gemini%203.1-Pro-orange)
 
-## Overview
+## 🎯 The Problem
 
-ClearClause is a hackathon project for **TerraCode Convergence** that uses AI to analyze complex documents (contracts, leases, insurance policies, ToS) and explain them in plain language.
+Contracts, leases, and legal documents are designed to be confusing. The average rental lease is 15+ pages of dense legalese. Most people sign without understanding what they're agreeing to — giving up rights, accepting unfair terms, or missing critical protections.
 
-### Key Features
+**ClearClause fixes this.** Upload any PDF document and our AI pipeline instantly:
+- Extracts every clause using Apryse OCR
+- Redacts personal information before AI ever sees it
+- Classifies each clause by risk category and severity
+- Compares your terms against industry standards
+- Lets you ask questions about your document in plain English
 
-- 📤 **Multi-Document Upload** - Concurrent analysis of multiple documents with session-based tracking
-- 🔍 **AI-Powered Analysis** - Gemini 3.1 Pro classifies clauses and identifies risks
-- 📊 **Visual Dashboard** - Category breakdown, top concerns, and clause-by-clause details
-- 📄 **Annotated PDF Viewer** - Apryse WebViewer with colored highlights for each clause
-- 💬 **Document Chat** - Ask questions about your document and get AI-powered answers
-- 🔊 **Voice Summary** - Deepgram TTS generates audio summaries of key findings
+## ✨ Features
 
-## Architecture
+### � AI Clause Analysis
+Gemini 3.1 Pro analyzes every clause in your document, classifying each as:
+- **Rights Given Up** — Things you're agreeing to surrender
+- **One-Sided Terms** — Clauses heavily favoring the other party
+- **Financial Impact** — Hidden costs, penalties, or financial obligations
+- **Missing Protections** — Standard protections absent from your document
+- **Standard** — Fair, commonly-seen terms
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      ClearClause System                      │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Frontend (Vercel)          Backend (Akamai LKE)            │
-│  ┌─────────────────┐        ┌─────────────────┐             │
-│  │  Vite + React   │───────▶│   FastAPI       │             │
-│  │                 │        │                 │             │
-│  │  • Upload       │        │  • OCR Service  │             │
-│  │  • Dashboard    │        │  • Analysis     │             │
-│  │  • Viewer       │        │  • Chat         │             │
-│  │  • Chat         │        │  • TTS          │             │
-│  └─────────────────┘        └─────────────────┘             │
-│                                │         │                   │
-│                                ▼         ▼                   │
-│                         ┌──────────┐ ┌──────────┐           │
-│                         │  Apryse  │ │  Gemini  │           │
-│                         │   OCR    │ │   3.1    │           │
-│                         └──────────┘ └──────────┘           │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
+### �️ PII Shield
+Personal information (SSNs, emails, phone numbers, credit cards, dates of birth) is **automatically detected and redacted** before the document text ever reaches the AI. The LLM never sees your raw personal data.
 
-## Multi-Document Concurrency
+### ⚖️ Fairness Comparison
+A computed **Fairness Score (0–100)** with side-by-side comparison: "Your Document vs Industry Standard" for every non-standard clause, with negotiation suggestions.
 
-ClearClause handles multiple concurrent document analyses:
+### 📄 Annotated PDF Viewer
+Apryse WebViewer displays your original PDF with **color-coded clause highlights**. Click any clause in the dashboard to jump directly to its location in the document.
 
-- **Session-Based Tracking** - Each upload gets a unique session ID
-- **Independent Pipelines** - OCR → Analysis runs isolated per document
-- **Real-Time Progress** - SSE streaming shows progress for each session
-- **Resource Management** - Rate limiting prevents API quota exhaustion
-- **Auto-Cleanup** - Expired sessions (30 min TTL) are automatically removed
+### 💬 AI Chat with Relevance Retrieval
+Ask questions about your document in plain English. The chat service uses **clause relevance scoring** (keyword + severity weighting) to select the most pertinent clauses for each question, with optional **vector-based semantic retrieval** (pgvector) for production deployments.
 
-### Concurrent Flow
+### 🎙️ Voice Input & Voice Output
+- **Deepgram Nova-2 STT** — Speak your questions via microphone
+- **Deepgram Aura-2 TTS** — AI reads responses and summaries aloud
+
+### 📊 Real-Time Progress
+Server-Sent Events stream granular pipeline progress:  
+`Uploading → OCR Extraction → PII Redaction → AI Analysis → Complete`
+
+### 🔄 Multi-Document Concurrency
+Each upload gets a unique session. Multiple documents can be analyzed simultaneously with independent pipelines, rate limiting, and auto-cleanup (30-min TTL).
+
+## 🏗️ Architecture
 
 ```
-User A: lease.pdf ──────┬──> Session abc123 ──> OCR → Analysis → Result
-                        │
-User B: contract.pdf ───┼──> Session xyz789 ──> OCR → Analysis → Result
-                        │
-User C: policy.pdf ─────┴──> Session def456 ──> OCR → Analysis → Result
+┌──────────────────────────────────────────────────────────────────┐
+│                       ClearClause System                         │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Frontend (Vercel)              Backend (Akamai LKE)             │
+│  ┌──────────────────┐           ┌──────────────────┐             │
+│  │  Vite + React 18 │──SSE/API─▶│   FastAPI         │            │
+│  │                  │           │                  │             │
+│  │  • Landing Page  │           │  Pipeline:       │             │
+│  │  • Upload        │           │  1. Apryse OCR   │             │
+│  │  • Dashboard     │           │  2. PII Redact   │             │
+│  │  • PDF Viewer    │           │  3. Gemini Pro   │             │
+│  │  • AI Chat       │           │  4. Clause Match │             │
+│  │  • Voice I/O     │           │                  │             │
+│  │  • Fairness      │           │  Services:       │             │
+│  └──────────────────┘           │  • Chat (Flash)  │             │
+│                                 │  • STT (Nova-2)  │             │
+│                                 │  • TTS (Aura-2)  │             │
+│                                 │  • Vector Store  │             │
+│                                 └──────────────────┘             │
+│                                   │       │       │              │
+│                                   ▼       ▼       ▼              │
+│                              ┌────────┐┌──────┐┌────────┐       │
+│                              │ Apryse ││Gemini││Deepgram│       │
+│                              │  OCR   ││ 3.1  ││Nova/TTS│       │
+│                              └────────┘└──────┘└────────┘       │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## Tech Stack
+## 💻 Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Vite + React 18 + React Router |
-| **Backend** | Python 3.11 + FastAPI |
-| **OCR** | Apryse SDK |
-| **AI Analysis** | Gemini 3.1 Pro Preview |
-| **AI Chat** | Gemini 3 Flash Preview |
-| **TTS** | Deepgram Aura-2 |
-| **PDF Viewer** | Apryse WebViewer |
-| **Deployment** | Vercel (FE) + Akamai LKE (BE) |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | Vite + React 18 | SPA with routing, context, custom hooks |
+| **Backend** | Python 3.11 + FastAPI | Async API with SSE streaming |
+| **OCR** | Apryse SDK | PDF text extraction with word-level positions |
+| **AI Analysis** | Gemini 3.1 Pro | Clause classification and risk assessment |
+| **AI Chat** | Gemini 3 Flash | Fast, conversational document Q&A |
+| **PII Detection** | Regex pipeline | SSN, email, phone, CC, DOB redaction |
+| **Speech-to-Text** | Deepgram Nova-2 | Voice input transcription |
+| **Text-to-Speech** | Deepgram Aura-2 | Audio summary generation |
+| **PDF Viewer** | Apryse WebViewer v10 | Annotated PDF display with highlights |
+| **Vector Store** | pgvector (optional) | Semantic clause retrieval for chat |
+| **Deployment** | Akamai LKE + Vercel | Kubernetes backend, static frontend |
+| **CI/CD** | GitHub Actions | Auto-deploy on push to main |
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
+- Python 3.11+, Node.js 18+
+- API Keys: [Gemini](https://makersuite.google.com/app/apikey), [Apryse](https://dev.apryse.com), [Deepgram](https://deepgram.com)
 
-- Python 3.11+
-- Node.js 18+
-- API Keys:
-  - [Gemini API Key](https://makersuite.google.com/app/apikey)
-  - [Apryse License Key](https://dev.apryse.com)
-  - [Deepgram API Key](https://deepgram.com)
-
-### Backend Setup
-
+### Backend
 ```bash
 cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-
-# Install dependencies
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# Configure environment (edit .env with your API keys)
-cp .env.example .env
-
-# Run server
-python main.py
-# or: uvicorn main:app --reload
+cp .env.example .env   # Edit with your API keys
+python main.py         # http://localhost:8000
 ```
 
-Backend runs at `http://localhost:8000`
-
-### Frontend Setup
-
+### Frontend
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Configure environment
-cp .env.example .env
-
-# Run dev server
-npm run dev
+cp .env.example .env   # Set VITE_API_URL
+npm run dev            # http://localhost:5173
 ```
 
-Frontend runs at `http://localhost:5173`
-
-## API Endpoints
+## 📡 API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/analyze` | POST | Upload PDF and start analysis (returns SSE stream) |
-| `/api/analyze/{sessionId}` | GET | Get analysis status for session |
-| `/api/chat` | POST | Ask question about analyzed document |
-| `/api/voice-summary` | POST | Generate TTS voice summary |
-| `/api/sessions` | GET | List all active sessions |
-| `/api/session/{sessionId}` | DELETE | Cancel analysis session |
-| `/health` | GET | Health check for Kubernetes probes |
+| `/api/analyze` | POST | Upload PDF → SSE progress stream |
+| `/api/analyze/{id}` | GET | Poll analysis status |
+| `/api/documents/{id}` | GET | Serve PDF for WebViewer |
+| `/api/chat` | POST | Document Q&A (Gemini Flash) |
+| `/api/transcribe` | POST | Voice → text (Deepgram STT) |
+| `/api/voice-summary` | POST | Text → audio (Deepgram TTS) |
+| `/api/sessions` | GET | List active sessions |
+| `/api/session/{id}` | DELETE | Cancel & cleanup |
+| `/health` | GET | Kubernetes health probe |
 
-## Project Structure
+## 🧱 Project Structure
 
 ```
 clear-clause/
 ├── backend/
-│   ├── main.py                 # FastAPI app entry
-│   ├── config.py               # Environment configuration
+│   ├── main.py                    # FastAPI app + middleware
+│   ├── config.py                  # Pydantic Settings
 │   ├── api/
-│   │   ├── router.py           # API routes
-│   │   ├── schemas.py          # Pydantic models
-│   │   └── dependencies.py     # DI setup
+│   │   ├── router.py              # All route definitions
+│   │   ├── schemas.py             # Pydantic models
+│   │   └── dependencies.py        # DI + validation
 │   ├── services/
-│   │   ├── ocr_service.py      # Apryse OCR
-│   │   ├── analysis_service.py # Gemini analysis
-│   │   ├── chat_service.py     # Document chat
-│   │   ├── tts_service.py      # Deepgram TTS
-│   │   ├── pipeline_service.py # Pipeline orchestration
-│   │   └── session_manager.py  # Multi-session management
+│   │   ├── ocr_service.py         # Apryse OCR extraction
+│   │   ├── pii_service.py         # PII detection & redaction
+│   │   ├── analysis_service.py    # Gemini clause analysis
+│   │   ├── chat_service.py        # Document Q&A + relevance scoring
+│   │   ├── stt_service.py         # Deepgram Nova-2 STT
+│   │   ├── tts_service.py         # Deepgram Aura-2 TTS
+│   │   ├── vector_store.py        # pgvector semantic retrieval
+│   │   ├── pipeline_service.py    # Pipeline orchestration
+│   │   └── session_manager.py     # Multi-session lifecycle
 │   ├── core/
-│   │   ├── exceptions.py       # Custom exceptions
-│   │   ├── rate_limiter.py     # Token bucket limiter
-│   │   └── logger.py           # Structured logging
+│   │   ├── exceptions.py          # Custom error hierarchy
+│   │   ├── rate_limiter.py        # Token bucket + backoff
+│   │   └── logger.py              # Structured logging
 │   └── prompts/
-│       └── analysis_prompt.py  # LLM prompts
+│       └── analysis_prompt.py     # LLM prompt templates
 │
 ├── frontend/
-│   ├── src/
-│   │   ├── App.jsx             # Root component
-│   │   ├── pages/
-│   │   │   ├── LandingPage.jsx
-│   │   │   ├── UploadPage.jsx
-│   │   │   └── AnalysisPage.jsx
-│   │   ├── components/
-│   │   │   ├── analysis/
-│   │   │   ├── chat/
-│   │   │   ├── viewer/
-│   │   │   └── voice/
-│   │   ├── hooks/
-│   │   │   └── useAnalysis.js
-│   │   └── context/
-│   │       └── AnalysisContext.jsx
-│   └── package.json
+│   └── src/
+│       ├── pages/                 # Landing, Upload, Analysis
+│       ├── components/
+│       │   ├── analysis/          # Dashboard, ClauseCard, CategoryBar, FairnessCompare
+│       │   ├── chat/              # AIAssistantPanel, ChatMessage, VoiceInput
+│       │   ├── viewer/            # DocumentViewer (Apryse WebViewer)
+│       │   └── common/            # ThemeToggle, OfflineBanner, AnalysisOnboarding
+│       ├── hooks/useAnalysis.js   # Upload + polling logic
+│       ├── context/               # AnalysisContext, ThemeContext
+│       └── services/api.js        # API client
 │
-└── deployment/
-    ├── k8s/
-    │   └── deployment.yaml     # Kubernetes configs
-    └── vercel.json             # Vercel config
+├── deployment/
+│   ├── k8s/deployment.yaml        # K8s Deployment + Service + Ingress
+│   └── vercel.json
+│
+└── .github/workflows/
+    └── deploy-backend.yml         # CI/CD auto-deploy to LKE
 ```
 
-## Design Patterns
+## 🔐 Privacy & Security
 
-### Backend
+- **PII never reaches the LLM** — Regex-based detection redacts SSNs, emails, phone numbers, credit cards, and dates of birth *before* the text is sent to Gemini
+- **Session isolation** — Each document gets an independent session with 30-min TTL and automatic cleanup
+- **Rate limiting** — Token bucket middleware prevents API abuse (120 req/min with burst of 30)
+- **Secrets management** — Kubernetes secrets for production API keys
 
-| Pattern | Usage |
-|---------|-------|
-| **Strategy** | OCR service (swap Apryse/mock) |
-| **Pipeline** | Analysis workflow (OCR → AI → Result) |
-| **Observer** | SSE progress streaming |
-| **Rate Limiter** | Token bucket for API calls |
+## 🏆 Built For
 
-### Frontend
+**TerraCode Convergence Hackathon 2026** — Think. Prompt. Build. Present.
 
-| Pattern | Usage |
-|---------|-------|
-| **Context** | Global analysis state |
-| **Custom Hooks** | Encapsulated logic (useAnalysis, useChat) |
-| **Compound Components** | Dashboard + Viewer + Chat |
+## 📜 License
 
-## API Keys Configuration
+MIT License
 
-Create `backend/.env` with:
+## 🙏 Credits
 
-```env
-GEMINI_API_KEY=your_gemini_key
-APRYSE_LICENSE_KEY=your_apryse_key
-DEEPGRAM_API_KEY=your_deepgram_key
-
-GEMINI_ANALYSIS_MODEL=gemini-3.1-pro-preview
-GEMINI_CHAT_MODEL=gemini-3-flash-preview
-
-FRONTEND_URL=http://localhost:5173
-MAX_FILE_SIZE_MB=50
-MAX_CONCURRENT_ANALYSES=5
-```
-
-## Deployment
-
-### Backend (Akamai LKE)
-
-```bash
-# Build and push Docker image
-docker build -t clearclause-backend ./backend
-docker tag clearclause-backend:latest <registry>/clearclause-backend:latest
-docker push <registry>/clearclause-backend:latest
-
-# Apply Kubernetes configs
-kubectl apply -f deployment/k8s/deployment.yaml
-
-# Create secrets
-kubectl create secret generic clearclause-secrets \
-  --from-literal=gemini-api-key=$GEMINI_API_KEY \
-  --from-literal=apryse-license-key=$APRYSE_KEY \
-  --from-literal=deepgram-api-key=$DEEPGRAM_KEY
-```
-
-### Frontend (Vercel)
-
-```bash
-cd frontend
-
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel --prod
-```
-
-## Testing
-
-### Backend Health Check
-
-```bash
-curl http://localhost:8000/health
-# Expected: {"status": "ok", "active_sessions": 0}
-```
-
-### Upload Test
-
-```bash
-curl -X POST http://localhost:8000/api/analyze \
-  -F "file=@test_document.pdf" \
-  --no-buffer
-```
-
-## Troubleshooting
-
-### Apryse SDK Not Found
-
-```bash
-# Install with correct index URL
-pip install apryse-sdk --extra-index-url=https://pypi.apryse.com
-```
-
-### Gemini Rate Limiting
-
-The backend implements automatic rate limiting with exponential backoff. If you hit limits frequently, adjust in `.env`:
-
-```env
-GEMINI_REQUESTS_PER_MINUTE=8
-MAX_CONCURRENT_ANALYSES=3
-```
-
-### Session Expired
-
-Sessions expire after 30 minutes of inactivity. Increase TTL in `.env`:
-
-```env
-SESSION_TTL_MINUTES=60
-```
-
-## License
-
-MIT License - Built for TerraCode Convergence Hackathon 2026
-
-## Credits
-
-- **Gemini API** - AI analysis and chat
-- **Apryse** - PDF text extraction and WebViewer
-- **Deepgram** - Voice summary TTS
-- **Akamai** - Kubernetes hosting (LKE)
-- **Vercel** - Frontend hosting
+- **Gemini API** — AI analysis and conversational chat
+- **Apryse** — PDF text extraction and WebViewer rendering
+- **Deepgram** — Voice input (Nova-2 STT) and voice output (Aura-2 TTS)
+- **Akamai** — Kubernetes hosting on LKE
+- **Vercel** — Frontend deployment
 
 ---
 

@@ -27,6 +27,11 @@ spec:
           name: http
           protocol: TCP
         env:
+        - name: VECTOR_DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: clearclause-vector-db
+              key: url
         - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
@@ -43,7 +48,7 @@ spec:
               name: clearclause-secrets
               key: deepgram-api-key
         - name: FRONTEND_URL
-        value: "https://clearclause.vercel.app,https://clear-clause-theta.vercel.app"
+          value: "https://clearclause.vercel.app,https://clear-clause-theta.vercel.app"
         - name: MAX_FILE_SIZE_MB
           value: "50"
         - name: MAX_CONCURRENT_ANALYSES

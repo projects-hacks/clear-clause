@@ -13,6 +13,7 @@ from services.session_manager import SessionManager, SessionStatus as SessionSta
 from services.ocr_service import extract_text_with_apryse, OCRResult
 from services.analysis_service import analyze_document_with_gemini
 from services.pii_service import redact_text, restore_pii
+from services.vector_store import index_clause_embeddings_for_session
 from core.exceptions import AnalysisError, OCRError, AIAnalysisError
 
 logger = structlog.get_logger()
@@ -257,6 +258,20 @@ async def run_analysis_pipeline(
                 total_clauses=len(analysis_result.clauses),
                 flagged_clauses=flagged_count
             )
+
+            # ========== Stage 2.5: Index clause embeddings for semantic chat ==========
+            try:
+                await index_clause_embeddings_for_session(
+                    session_id=session_id,
+                    clauses=analysis_result.clauses,
+                )
+            except Exception as e:
+                # Indexing failures should never break the main analysis pipeline.
+                logger.warning(
+                    "Clause embedding indexing failed",
+                    session_id=session_id,
+                    error=str(e),
+                )
             
         except Exception as e:
             logger.error("AI analysis failed", session_id=session_id, error=str(e))
