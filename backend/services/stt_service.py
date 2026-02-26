@@ -31,7 +31,7 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
         raise ConfigurationError("DEEPGRAM_API_KEY not configured")
         
     try:
-        from deepgram import DeepgramClient, PrerecordedOptions
+        from deepgram import DeepgramClient
         
         client = DeepgramClient(api_key=api_key)
         
@@ -40,14 +40,14 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
             "mimetype": "audio/webm", # Default for browser MediaRecorder
         }
         
-        options = PrerecordedOptions(
-            model="nova-2",
-            language="en",
-            smart_format=True,
-            punctuate=True,
-        )
+        options = {
+            "model": "nova-2",
+            "language": "en",
+            "smart_format": True,
+            "punctuate": True,
+        }
         
-        response = client.listen.rest.v("1").transcribe_file(payload, options)
+        response = client.listen.v1.media.transcribe_file(payload, options)
         
         transcript = response.results.channels[0].alternatives[0].transcript
         
