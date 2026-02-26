@@ -9,10 +9,12 @@ Multi-document concurrent analysis server with:
 """
 import asyncio
 from contextlib import asynccontextmanager
+from collections import defaultdict
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import structlog
+import time
 
 from config import get_settings
 from api.router import router
@@ -73,21 +75,88 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware - allow all origins for development
-# In production, restrict to specific domains
+# CORS middleware - configured via environment variables
+# In production, set ALLOWED_ORIGINS to your frontend domain(s)
 # Note: allow_credentials=True with allow_origins=["*"] is invalid per CORS spec
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# Use comma-separated list: "http://localhost:5173,https://yourdomain.com"
+allowed_origins = settings.frontend_url.split(",") if settings.frontend_url else []
+# Add common dev origins
+if not any(origins for origins in allowed_origins):
+    allowed_origins = [
         "http://localhost:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5173",
-        "https://clearclause.vercel.app",
-    ],
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Session-ID"],
+)
+
+
+# Simple in-memory rate limiter middleware
+class RateLimitMiddleware:
+    """Simple token bucket rate limiter per IP address."""
+    
+    def __init__(self, app, requests_per_minute: int = 30, burst: int = 10):
+        self.app = app
+        self.requests_per_minute = requests_per_minute
+        self.burst = burst
+        self.buckets = defaultdict(lambda: {"tokens": burst, "last_update": time.time()})
+    
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        
+        # Get client IP
+        client_ip = None
+        for header in scope.get("headers", []):
+            if header[0] == b"x-forwarded-for":
+                client_ip = header[1].decode().split(",")[0].strip()
+                break
+        if not client_ip:
+            client_ip = scope.get("client") or "unknown"
+        
+        # Check rate limit
+        bucket = self.buckets[client_ip]
+        now = time.time()
+        elapsed = now - bucket["last_update"]
+        bucket["last_update"] = now
+        
+        # Refill tokens
+        bucket["tokens"] = min(
+            self.burst,
+            bucket["tokens"] + elapsed * (self.requests_per_minute / 60)
+        )
+        
+        if bucket["tokens"] < 1:
+            # Rate limited
+            response = JSONResponse(
+                status_code=429,
+                content={
+                    "error": "rate_limit_exceeded",
+                    "message": "Too many requests. Please slow down.",
+                    "recovery": f"Wait a moment before making more requests. Limit: {self.requests_per_minute} requests per minute."
+                },
+                headers={"Retry-After": "60"}
+            )
+            await response(scope, receive, send)
+            return
+        
+        bucket["tokens"] -= 1
+        await self.app(scope, receive, send)
+
+
+# Add rate limiting middleware
+app.add_middleware(
+    RateLimitMiddleware,
+    requests_per_minute=settings.rate_limit_per_minute,
+    burst=settings.rate_limit_burst,
 )
 
 
@@ -104,12 +173,7 @@ async def clearclause_exception_handler(request: Request, exc: ClearClauseExcept
     
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": exc.error_code,
-            "message": exc.message,
-            "detail": exc.detail,
-            "session_id": exc.session_id,
-        },
+        content=exc.to_dict(),
     )
 
 
@@ -120,8 +184,9 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         status_code=429,
         content={
             "error": "rate_limit_exceeded",
-            "message": "Too many requests. Please wait and try again.",
-            "detail": f"Retry after {exc.retry_after} seconds",
+            "message": exc.message,
+            "detail": exc.detail,
+            "recovery": exc.recovery,
         },
         headers={"Retry-After": str(exc.retry_after)},
     )
@@ -132,11 +197,7 @@ async def session_not_found_handler(request: Request, exc: SessionNotFound):
     """Handle session not found errors."""
     return JSONResponse(
         status_code=404,
-        content={
-            "error": "session_not_found",
-            "message": "Analysis session not found or expired",
-            "detail": exc.detail,
-        },
+        content=exc.to_dict(),
     )
 
 
