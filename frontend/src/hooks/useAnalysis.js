@@ -27,7 +27,7 @@ export function useDocumentAnalysis() {
     try {
       const stream = await uploadDocument(file);
 
-      // Read first SSE event to ensure we have sessionId
+      // Read first SSE event to get sessionId
       const firstEvent = await stream.readProgress();
       const sessionId = stream.sessionId || firstEvent?.session_id;
 
@@ -35,33 +35,53 @@ export function useDocumentAnalysis() {
         throw new Error('Failed to get session ID from server');
       }
 
-      // Add session to context + localStorage
+      // Add session immediately with 'uploading' status so the progress UI shows
       addSession({
         session_id: sessionId,
         document_name: file.name,
-        status: firstEvent?.stage || 'uploading',
-        progress: firstEvent?.progress || 10,
-        message: firstEvent?.message || 'Document received, starting analysis...',
+        status: 'uploading',
+        progress: 10,
+        message: 'Document received, starting analysis...',
         created_at: new Date().toISOString(),
+        result: null,
       });
 
-      // Continue reading SSE in background (non-blocking)
+      // Process the first event's data if it already has progress
+      if (firstEvent) {
+        updateSession(sessionId, {
+          status: firstEvent.stage,
+          progress: firstEvent.progress,
+          message: firstEvent.message,
+          result: firstEvent.data || null,
+        });
+      }
+
+      // Continue reading ALL remaining SSE events in background (non-blocking)
       (async () => {
         try {
-          while (true) {
-            const progress = await stream.readProgress();
-            if (!progress) break;
-            if (progress.error) {
-              updateSession(sessionId, { status: 'error', message: progress.error });
-              break;
+          let done = false;
+          while (!done) {
+            const events = await stream.readAllProgress();
+            if (events.length === 0) break; // stream ended
+
+            // Process EVERY event so progress UI updates incrementally
+            for (const progress of events) {
+              if (progress.error) {
+                updateSession(sessionId, { status: 'error', message: progress.error });
+                done = true;
+                break;
+              }
+              updateSession(sessionId, {
+                status: progress.stage,
+                progress: progress.progress,
+                message: progress.message,
+                result: progress.data || null,
+              });
+              if (progress.stage === 'complete' || progress.stage === 'error') {
+                done = true;
+                break;
+              }
             }
-            updateSession(sessionId, {
-              status: progress.stage,
-              progress: progress.progress,
-              message: progress.message,
-              result: progress.data || null,
-            });
-            if (progress.stage === 'complete' || progress.stage === 'error') break;
           }
         } catch (err) {
           console.error('SSE read error:', err);
@@ -163,11 +183,11 @@ export function useVoiceSummary() {
     try {
       const { generateVoiceSummary } = await import('../services/api');
       const audioBlob = await generateVoiceSummary(sessionId, text);
-      
+
       // Create object URL for playback
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
-      
+
       return url;
     } catch (err) {
       setError(err.message);

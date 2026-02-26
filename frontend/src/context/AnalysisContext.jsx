@@ -27,6 +27,9 @@ const initialState = {
 function analysisReducer(state, action) {
   switch (action.type) {
     case ACTIONS.ADD_SESSION:
+      if (state.sessions.some(s => s.session_id === action.payload.session_id)) {
+        return state;
+      }
       return {
         ...state,
         sessions: [...state.sessions, action.payload],
@@ -85,11 +88,17 @@ export function AnalysisProvider({ children }) {
         const sessions = JSON.parse(saved);
         // Filter out sessions with null/undefined IDs (from old bugs)
         const validSessions = sessions.filter(s => s && s.session_id);
-        if (validSessions.length !== sessions.length) {
-          // Clean up localStorage by removing invalid entries
-          localStorage.setItem('clearclause_sessions', JSON.stringify(validSessions));
+
+        // Deduplicate
+        const uniqueSessionsMap = new Map();
+        validSessions.forEach(s => uniqueSessionsMap.set(s.session_id, s));
+        const uniqueSessions = Array.from(uniqueSessionsMap.values());
+
+        if (uniqueSessions.length !== sessions.length) {
+          // Clean up localStorage by removing invalid/duplicate entries
+          localStorage.setItem('clearclause_sessions', JSON.stringify(uniqueSessions));
         }
-        validSessions.forEach(session => {
+        uniqueSessions.forEach(session => {
           dispatch({
             type: ACTIONS.ADD_SESSION,
             payload: session,
