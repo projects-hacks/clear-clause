@@ -83,9 +83,14 @@ export async function uploadDocument(file) {
   return {
     get sessionId() { return sessionId; },
     reader,
-    async readProgress() {
+
+    /**
+     * Read all available progress events from the current chunk
+     * Returns array of all events (may be empty if stream is done)
+     */
+    async readAllProgress() {
       const { done, value } = await reader.read();
-      if (done) return null;
+      if (done) return [];
 
       // Decode and add to buffer
       buffer += decoder.decode(value, { stream: true });
@@ -99,15 +104,23 @@ export async function uploadDocument(file) {
         buffer = buffer.slice(lastEventEnd + 2);
       }
 
-      // Return the last event (most recent progress)
-      const lastEvent = events.length > 0 ? events[events.length - 1] : null;
-
-      // Fallback: extract sessionId from SSE payload
-      if (lastEvent?.session_id && !sessionId) {
-        sessionId = lastEvent.session_id;
+      // Extract sessionId from any event if not yet known
+      for (const event of events) {
+        if (event?.session_id && !sessionId) {
+          sessionId = event.session_id;
+          break;
+        }
       }
 
-      return lastEvent;
+      return events;
+    },
+
+    /**
+     * Read the most recent progress event (convenience wrapper)
+     */
+    async readProgress() {
+      const events = await this.readAllProgress();
+      return events.length > 0 ? events[events.length - 1] : null;
     },
   };
 }
@@ -187,13 +200,13 @@ export async function askQuestion(sessionId, question) {
 }
 
 /**
- * Generate voice summary.
+ * Generate speech from text using Deepgram Aura-2.
  * 
  * @param {string} sessionId - Session ID
  * @param {string} text - Text to convert to speech
  * @returns {Promise<Blob>} Audio blob
  */
-export async function generateVoiceSummary(sessionId, text) {
+export async function generateSpeech(sessionId, text) {
   const response = await fetch(`${API_BASE_URL}/voice-summary?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: {
@@ -205,8 +218,33 @@ export async function generateVoiceSummary(sessionId, text) {
   });
 
   if (!response.ok) {
-    throw new Error('Voice summary generation failed');
+    throw new Error('Speech generation failed');
   }
 
   return response.blob();
+}
+
+/**
+ * Transcribe audio using Deepgram Nova-2 STT.
+ * 
+ * @param {string} sessionId - Session ID
+ * @param {Blob} audioBlob - Audio data
+ * @returns {Promise<string>} Transcribed text
+ */
+export async function transcribeAudio(sessionId, audioBlob) {
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'audio.webm');
+
+  const response = await fetch(`${API_BASE_URL}/transcribe?session_id=${encodeURIComponent(sessionId)}`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Transcription failed: ${errorBody}`);
+  }
+
+  const data = await response.json();
+  return data.transcript;
 }

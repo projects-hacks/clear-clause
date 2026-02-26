@@ -8,7 +8,9 @@
  */
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AnalysisProvider } from './context/AnalysisContext';
+import OfflineBanner from './components/common/OfflineBanner';
 
 // Pages
 import LandingPage from './pages/LandingPage';
@@ -23,9 +25,14 @@ import './index.css';
  */
 function App() {
   return (
-    <AnalysisProvider>
-      <BrowserRouter>
+    <ThemeProvider>
+      <AnalysisProvider>
+        <BrowserRouter>
         <div className="app">
+          <OfflineBanner />
+          {/* Skip link for keyboard accessibility */}
+          <a href="#main-content" className="skip-link">Skip to main content</a>
+          
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/upload" element={<UploadPage />} />
@@ -35,6 +42,7 @@ function App() {
         </div>
       </BrowserRouter>
     </AnalysisProvider>
+    </ThemeProvider>
   );
 }
 

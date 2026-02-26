@@ -381,59 +381,99 @@ export default function UploadPage() {
         {/* Processing Queue */}
         {sessions.length > 0 && (
           <div className="processing-queue" aria-live="polite" aria-atomic="false">
-            <h3>
-              <Loader2 size={16} className={sessions.some(s => s.status !== 'complete' && s.status !== 'error') ? 'spinner' : ''} />
-              Processing Queue
-              {sessions.some(s => ['complete', 'error'].includes(s.status)) && (
+            <div className="queue-header">
+              <div className="queue-title">
+                <Loader2 size={16} className={sessions.some(s => isInProgressStatus(s.status)) ? 'spinner' : ''} />
+                <div>
+                  <h3>Analyses</h3>
+                  <p className="queue-subtitle">In progress and recent results</p>
+                </div>
+              </div>
+              {counts.complete + counts.error > 0 && (
                 <button
                   className="btn btn-secondary btn-small"
-                  style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)' }}
-                  onClick={() => {
-                    sessions.filter(s => ['complete', 'error'].includes(s.status))
-                      .forEach(s => removeSession(s.session_id));
-                  }}
+                  onClick={clearComplete}
+                  title="Remove completed and failed analyses from this list"
                 >
-                  Clear Completed
+                  Clear completed
                 </button>
               )}
-            </h3>
+            </div>
+
+            <div className="queue-filters" role="tablist" aria-label="Filter analyses">
+              <button className={`queue-filter ${queueFilter === 'all' ? 'active' : ''}`} onClick={() => setQueueFilter('all')} role="tab" aria-selected={queueFilter === 'all'}>
+                All <span className="queue-count">{counts.all}</span>
+              </button>
+              <button className={`queue-filter ${queueFilter === 'in_progress' ? 'active' : ''}`} onClick={() => setQueueFilter('in_progress')} role="tab" aria-selected={queueFilter === 'in_progress'}>
+                In progress <span className="queue-count">{counts.in_progress}</span>
+              </button>
+              <button className={`queue-filter ${queueFilter === 'complete' ? 'active' : ''}`} onClick={() => setQueueFilter('complete')} role="tab" aria-selected={queueFilter === 'complete'}>
+                Completed <span className="queue-count">{counts.complete}</span>
+              </button>
+              <button className={`queue-filter ${queueFilter === 'error' ? 'active' : ''}`} onClick={() => setQueueFilter('error')} role="tab" aria-selected={queueFilter === 'error'}>
+                Failed <span className="queue-count">{counts.error}</span>
+              </button>
+            </div>
+
             <div className="queue-list">
-              {[...sessions].reverse().map(session => (
-                <div key={session.session_id} className={`queue-item ${session.status}`}>
-                  <div className="queue-item-left">
-                    <FileText size={16} className="queue-file-icon" />
-                    <div className="queue-item-info">
-                      <span className="queue-doc-name">{session.document_name}</span>
-                      <span className="queue-status-text">
-                        {session.status === 'complete' ? 'Analysis complete' :
-                          session.status === 'error' ? session.message || 'Failed' :
-                            session.message || 'Processing...'}
-                      </span>
+              {sessionsToShow.map((session) => {
+                const relTime = formatRelativeTime(session.created_at);
+                const inProgress = isInProgressStatus(session.status);
+                const flagged = session.result?.flagged_clauses;
+                const total = session.result?.total_clauses;
+
+                const statusLabel = inProgress
+                  ? 'In progress'
+                  : session.status === 'complete'
+                    ? 'Completed'
+                    : 'Failed';
+
+                return (
+                  <div key={session.session_id} className={`queue-item ${session.status}`}>
+                    <div className="queue-item-left">
+                      <div className={`queue-status-icon ${session.status}`}>
+                        {session.status === 'complete' ? <CheckCircle2 size={16} /> : session.status === 'error' ? <AlertTriangle size={16} /> : <FileText size={16} />}
+                      </div>
+                      <div className="queue-item-info">
+                        <span className="queue-doc-name">{session.document_name}</span>
+                        <div className="queue-meta">
+                          <span className={`queue-chip ${session.status}`}>{statusLabel}</span>
+                          {relTime && <span className="queue-time">{relTime}</span>}
+                          {session.status === 'complete' && typeof flagged === 'number' && typeof total === 'number' && (
+                            <span className="queue-stats">{flagged} flagged · {total} clauses</span>
+                          )}
+                        </div>
+                        <span className="queue-status-text">
+                          {session.status === 'complete' ? (session.message || 'Analysis complete') :
+                            session.status === 'error' ? (session.message || 'Failed') :
+                              (session.message || 'Processing...')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="queue-item-right">
+                      {session.status === 'complete' ? (
+                        <button
+                          className="btn btn-primary btn-small"
+                          onClick={() => navigate(`/analysis/${session.session_id}`)}
+                        >
+                          <CheckCircle2 size={14} /> View results
+                        </button>
+                      ) : session.status === 'error' ? (
+                        <span className="queue-error-badge">
+                          <AlertTriangle size={14} /> Failed
+                        </span>
+                      ) : (
+                        <div className="queue-progress-bar-wrapper">
+                          <div className="queue-progress-bar">
+                            <div className="queue-progress-fill" style={{ width: `${session.progress}%` }} />
+                          </div>
+                          <span className="queue-percent">{session.progress}%</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="queue-item-right">
-                    {session.status === 'complete' ? (
-                      <button
-                        className="btn btn-primary btn-small"
-                        onClick={() => navigate(`/analysis/${session.session_id}`)}
-                      >
-                        <CheckCircle2 size={14} /> View Results
-                      </button>
-                    ) : session.status === 'error' ? (
-                      <span className="queue-error-badge">
-                        <AlertTriangle size={14} /> Failed
-                      </span>
-                    ) : (
-                      <div className="queue-progress-bar-wrapper">
-                        <div className="queue-progress-bar">
-                          <div className="queue-progress-fill" style={{ width: `${session.progress}%` }} />
-                        </div>
-                        <span className="queue-percent">{session.progress}%</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

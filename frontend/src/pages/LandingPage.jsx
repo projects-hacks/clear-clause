@@ -8,8 +8,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Zap, UploadCloud, PlayCircle, FileText, Upload, Sparkles,
   ShieldCheck, Home, Briefcase, Stethoscope, Smartphone,
-  Handshake, PieChart, Github, Twitter, Linkedin, Brain, MessageSquare, Scale, Mic
+  Handshake, PieChart, Brain, MessageSquare, Scale, Mic
 } from 'lucide-react';
+import ThemeToggle from '../components/common/ThemeToggle';
 
 /**
  * Landing Page
@@ -20,7 +21,7 @@ export default function LandingPage() {
   return (
     <div className="landing-page">
       {/* Navigation */}
-      <nav className="landing-nav">
+      <nav className="landing-nav" aria-label="Main navigation">
         <div className="nav-brand">
           <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
           <span className="brand-name">ClearClause</span>
@@ -29,16 +30,19 @@ export default function LandingPage() {
           <a href="#how-it-works">How It Works</a>
           <a href="#use-cases">Use Cases</a>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => navigate('/upload')}
-        >
-          Try Now
-        </button>
+        <div className="nav-actions">
+          <ThemeToggle />
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/upload')}
+          >
+            Try Now
+          </button>
+        </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="hero">
+      <section className="hero" id="main-content">
         <div className="hero-content">
           <div className="hero-badge">AI-Powered Contract Analysis</div>
           <h1 className="hero-title">
@@ -58,7 +62,10 @@ export default function LandingPage() {
               <UploadCloud size={20} />
               Analyze Document
             </button>
-            <button className="btn btn-secondary btn-large">
+            <button
+              className="btn btn-secondary btn-large"
+              onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+            >
               <PlayCircle size={20} />
               See Platform
             </button>
