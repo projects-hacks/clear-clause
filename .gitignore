@@ -48,3 +48,5 @@ coverage.xml
 .hg/
 .bzr/
 _svn/
+.minimax
+.minimax/*
