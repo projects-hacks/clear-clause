@@ -11,16 +11,18 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAnalysis } from '../context/AnalysisContext';
-import { useDocumentAnalysis, useChat, useVoiceSummary } from '../hooks/useAnalysis';
+import { useDocumentAnalysis, useChat } from '../hooks/useAnalysis';
+import { getAnalysisStatus } from '../services/api';
 
 // Components
 import DocumentViewer from '../components/viewer/DocumentViewer';
 import Dashboard from '../components/analysis/Dashboard';
-import ChatPanel from '../components/chat/ChatPanel';
-import VoiceSummary from '../components/voice/VoiceSummary';
+import AIAssistantPanel from '../components/chat/AIAssistantPanel';
+import AnalysisOnboarding from '../components/common/AnalysisOnboarding';
 
 // Icons
-import { ArrowLeft, Volume2, LayoutDashboard, MessageSquare, Upload, FileSearch, Brain, CheckCircle2, Zap, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, MessageSquare, Upload, FileSearch, Brain, CheckCircle2, Zap, AlertTriangle } from 'lucide-react';
+import ThemeToggle from '../components/common/ThemeToggle';
 
 /**
  * Analysis Page
@@ -28,17 +30,44 @@ import { ArrowLeft, Volume2, LayoutDashboard, MessageSquare, Upload, FileSearch,
 export default function AnalysisPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { sessions, getActiveSession, setActiveSession, updateSession } = useAnalysis();
+  const { sessions, getActiveSession, setActiveSession, updateSession, addSession } = useAnalysis();
   const { pollStatus } = useDocumentAnalysis();
   const chat = useChat();
-  const voice = useVoiceSummary();
 
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'chat'
-  const [showVoice, setShowVoice] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [selectedClauseId, setSelectedClauseId] = useState(null);
 
   // Find current session
   const session = sessions.find(s => s.session_id === sessionId);
+
+  // Session not found in context - try to recover from backend or show error
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionError, setSessionError] = useState(null);
+
+  // Try to load session from backend if not in context
+  useEffect(() => {
+    if (!session && sessionId && !sessionLoading) {
+      setSessionLoading(true);
+      getAnalysisStatus(sessionId)
+        .then(status => {
+          addSession({
+            session_id: status.session_id,
+            document_name: status.document_name,
+            status: status.status,
+            progress: status.progress,
+            message: status.message,
+            created_at: status.created_at,
+            result: status.result || null,
+          });
+        })
+        .catch(err => {
+          console.error('Failed to load session:', err);
+          setSessionError(err.message);
+        })
+        .finally(() => setSessionLoading(false));
+    }
+  }, [session, sessionId, sessionLoading, addSession]);
 
   // Set as active session on mount
   useEffect(() => {
@@ -84,8 +113,51 @@ export default function AnalysisPage() {
     return () => clearInterval(interval);
   }, [sessionStatus, sessionCreatedAt]);
 
-  // Loading state - session not found
+  // Loading state - session not found or loading from backend
   if (!session) {
+    if (sessionLoading) {
+      return (
+        <div className="analysis-page loading">
+          <nav className="landing-nav">
+            <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
+              <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
+              <span className="brand-name">ClearClause</span>
+            </div>
+            <div className="nav-links" />
+            <ThemeToggle />
+          </nav>
+          <div className="loading-state">
+            <div className="spinner-large"></div>
+            <h2>Restoring session...</h2>
+            <p style={{ color: 'var(--text-secondary)' }}>Fetching analysis results from server...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (sessionError) {
+      return (
+        <div className="analysis-page loading">
+          <nav className="landing-nav">
+            <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
+              <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
+              <span className="brand-name">ClearClause</span>
+            </div>
+            <div className="nav-links" />
+            <ThemeToggle />
+          </nav>
+          <div className="loading-state error">
+            <AlertTriangle size={48} color="var(--error)" />
+            <h2>Session Not Found</h2>
+            <p style={{ color: 'var(--text-secondary)' }}>{sessionError}</p>
+            <button className="btn btn-primary" onClick={() => navigate('/upload')}>
+              Upload New Document
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="analysis-page loading">
         <nav className="landing-nav">
@@ -93,7 +165,8 @@ export default function AnalysisPage() {
             <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
             <span className="brand-name">ClearClause</span>
           </div>
-          <div className="nav-links"></div>
+          <div className="nav-links" />
+          <ThemeToggle />
         </nav>
         <div className="loading-state">
           <div className="spinner-large"></div>
@@ -124,10 +197,13 @@ export default function AnalysisPage() {
             <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
             <span className="brand-name">ClearClause</span>
           </div>
-          <div className="nav-links"></div>
-          <button className="btn btn-secondary" onClick={() => navigate('/upload')}>
-            <ArrowLeft size={16} /> Back
-          </button>
+          <div className="nav-links" />
+          <div className="nav-actions">
+            <ThemeToggle />
+            <button className="btn btn-secondary" onClick={() => navigate('/upload')}>
+              <ArrowLeft size={16} /> Back
+            </button>
+          </div>
         </nav>
         {/* Progress Card */}
         <div className="progress-card">
@@ -167,9 +243,13 @@ export default function AnalysisPage() {
             <span className="progress-percent">{session.progress}%</span>
           </div>
           {/* Time Info */}
-          <div className="progress-time-info">
+          <div className="progress-time-info" aria-live="polite" aria-atomic="true">
             <span>Elapsed: {Math.floor(elapsedTime / 60)}:{String(elapsedTime % 60).padStart(2, '0')}</span>
-            <span>Usually completes in ~60 seconds</span>
+            <span>
+              {elapsedTime < 60
+                ? `~${Math.max(0, 60 - elapsedTime)}s remaining`
+                : 'Almost done...'}
+            </span>
           </div>
         </div>
       </div>
@@ -185,13 +265,14 @@ export default function AnalysisPage() {
             <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
             <span className="brand-name">ClearClause</span>
           </div>
-          <div className="nav-links"></div>
+          <div className="nav-links" />
+          <ThemeToggle />
         </nav>
-        <div className="progress-card error-card">
+        <div className="progress-card error-card" role="alert">
           <AlertTriangle size={48} color="var(--error)" />
           <h2 className="progress-title">Analysis Failed</h2>
           <p className="progress-subtitle">{session.message || 'An unexpected error occurred during analysis.'}</p>
-          <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
+          <div className="error-card-actions">
             <button className="btn btn-primary" onClick={() => navigate('/upload')}>
               Try Again
             </button>
@@ -225,12 +306,7 @@ export default function AnalysisPage() {
           )}
         </div>
         <div className="header-actions">
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowVoice(!showVoice)}
-          >
-            <Volume2 size={16} /> Voice Summary
-          </button>
+          <ThemeToggle />
           <button
             className={`btn ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab('dashboard')}
@@ -246,6 +322,24 @@ export default function AnalysisPage() {
         </div>
       </header>
 
+      {/* Mobile Tab Bar */}
+      <div className="mobile-tab-bar" aria-label="Switch between Dashboard and Chat">
+        <button
+          className={`mobile-tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
+          aria-pressed={activeTab === 'dashboard'}
+        >
+          <LayoutDashboard size={20} /> Dashboard
+        </button>
+        <button
+          className={`mobile-tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chat')}
+          aria-pressed={activeTab === 'chat'}
+        >
+          <MessageSquare size={20} /> Chat
+        </button>
+      </div>
+
       {/* Main Content */}
       <main className="analysis-content">
         {/* Left: Document Viewer */}
@@ -253,45 +347,28 @@ export default function AnalysisPage() {
           <DocumentViewer
             sessionId={sessionId}
             clauses={session.result?.clauses || []}
+            selectedClauseId={selectedClauseId}
           />
         </div>
 
         {/* Right: Dashboard or Chat */}
         <div className="side-panel">
+          <AnalysisOnboarding />
           {activeTab === 'dashboard' && session.result && (
             <Dashboard
               result={session.result}
-              onClauseSelect={(clauseId) => {
-                // Highlight clause in viewer
-                console.log('Select clause:', clauseId);
-              }}
+              onClauseSelect={(clauseId) => setSelectedClauseId(clauseId)}
             />
           )}
 
           {activeTab === 'chat' && (
-            <ChatPanel
+            <AIAssistantPanel
               sessionId={sessionId}
-              isLoading={chat.isLoading}
-              onSendMessage={chat.sendMessage}
             />
           )}
         </div>
       </main>
 
-      {/* Voice Summary Overlay */}
-      {showVoice && session.result && (
-        <VoiceSummary
-          sessionId={sessionId}
-          summary={session.result.summary}
-          isGenerating={voice.isGenerating}
-          audioUrl={voice.audioUrl}
-          onGenerate={voice.generate}
-          onClose={() => {
-            voice.clearAudio();
-            setShowVoice(false);
-          }}
-        />
-      )}
     </div>
   );
 }
