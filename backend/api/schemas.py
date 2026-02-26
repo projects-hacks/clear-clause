@@ -12,6 +12,7 @@ class SessionStatusEnum(str, Enum):
     """Analysis session status."""
     UPLOADING = "uploading"
     EXTRACTING = "extracting"
+    REDACTING = "redacting"
     ANALYZING = "analyzing"
     COMPLETE = "complete"
     ERROR = "error"
@@ -107,6 +108,8 @@ class AnalysisResult(BaseModel):
     document_text: str = Field(default="", description="Full OCR text context for Q&A")
     total_clauses: int
     flagged_clauses: int = Field(description="Count of non-standard clauses")
+    pii_redacted_count: int = Field(default=0, description="Number of PII items redacted")
+    pii_categories: List[str] = Field(default_factory=list, description="Categories of PII found")
     clauses: List[ClauseClassification]
     summary: str = Field(description="Executive summary paragraph")
     top_concerns: List[str] = Field(description="Top 3-5 findings")

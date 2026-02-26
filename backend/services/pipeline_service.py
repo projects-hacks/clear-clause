@@ -12,6 +12,7 @@ import structlog
 from services.session_manager import SessionManager, SessionStatus as SessionStatusEnum
 from services.ocr_service import extract_text_with_apryse, OCRResult
 from services.analysis_service import analyze_document_with_gemini
+from services.pii_service import redact_text, restore_pii
 from core.exceptions import AnalysisError, OCRError, AIAnalysisError
 
 logger = structlog.get_logger()
@@ -128,7 +129,7 @@ async def run_analysis_pipeline(
     try:
         logger.info("Pipeline started", session_id=session_id)
         
-        # ========== Stage 1: OCR Text Extraction ==========
+        # ========== Stage 1: OCR Text Extraction (roughly first 20% of work) ==========
         await session_manager.update_session(
             session_id=session_id,
             status=SessionStatusEnum.EXTRACTING,
@@ -161,23 +162,67 @@ async def run_analysis_pipeline(
                 message=f"Failed to extract text: {str(e)}",
                 session_id=session_id
             )
+            
+        # ========== Stage 1.5: PII Redaction ==========
+        await session_manager.update_session(
+            session_id=session_id,
+            status=SessionStatusEnum.REDACTING,
+            progress=45,
+            message="🛡️ Scanning for personal information..."
+        )
         
-        # ========== Stage 2: AI Clause Analysis ==========
+        redacted_text, pii_map, pii_categories = redact_text(ocr_result.full_text)
+        
+        # Log redaction metrics
+        if pii_map:
+            logger.info("PII Redacted", session_id=session_id, items=len(pii_map), categories=pii_categories)
+            await session_manager.update_session(
+                session_id=session_id,
+                status=SessionStatusEnum.REDACTING,
+                progress=50,
+                message=f"🛡️ Redacted {len(pii_map)} PII items before AI analysis"
+            )
+        else:
+            await session_manager.update_session(
+                session_id=session_id,
+                status=SessionStatusEnum.REDACTING,
+                progress=50,
+                message="No PII detected, proceeding to analysis..."
+            )
+        
+        # ========== Stage 2: AI Clause Analysis (majority of work) ==========
         await session_manager.update_session(
             session_id=session_id,
             status=SessionStatusEnum.ANALYZING,
-            progress=50,
-            message="AI analyzing document clauses..."
+            progress=70,
+            message="AI analyzing document clauses... This is where most of the work happens."
         )
         
         logger.info("Stage 2: AI analysis started", session_id=session_id)
         
         try:
+            # Pass REDACTED text to Gemini, not raw OCR text
             analysis_result = await analyze_document_with_gemini(
-                document_text=ocr_result.full_text,
+                document_text=redacted_text,
                 document_name=session_manager._sessions[session_id].document_name if session_id in session_manager._sessions else "document.pdf",
                 session_id=session_id,
             )
+            
+            # Store PII stats in the result
+            analysis_result.pii_redacted_count = len(pii_map)
+            analysis_result.pii_categories = pii_categories
+            
+            # Restore PII into the clause text for the viewer (so highlighting matches)
+            # We ONLY do this for the final output, Gemini never saw the PII
+            if pii_map:
+                for clause in analysis_result.clauses:
+                    clause.text = restore_pii(clause.text, pii_map)
+                
+                # Also restore the summary if it hallucinated a redaction tag
+                analysis_result.summary = restore_pii(analysis_result.summary, pii_map)
+                
+                # Update the full document context for future chat to have the restored text
+                analysis_result.document_text = ocr_result.full_text
 
             # Match clause positions using OCR word data
             logger.info("Matching clause positions...", session_id=session_id)
@@ -190,10 +235,11 @@ async def run_analysis_pipeline(
                 if clause.category != "standard"
             )
             
+            # Move progress closer to completion as AI wraps up
             await session_manager.update_session(
                 session_id=session_id,
                 status=SessionStatusEnum.ANALYZING,
-                progress=80,
+                progress=90,
                 message=f"Classified {len(analysis_result.clauses)} clauses ({flagged_count} flagged)"
             )
             
