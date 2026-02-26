@@ -68,6 +68,16 @@ export default function AIAssistantPanel({ sessionId }) {
         } catch (err) {
             console.error('TTS playback failed:', err);
             setCurrentlyPlaying(null);
+            // If the session has expired, surface a clear message in the chat
+            if (err.code === 'session_not_found') {
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: 'This analysis has expired. Please upload your document again to use voice playback.',
+                    isError: true,
+                    timestamp: new Date(),
+                }]);
+            }
         }
     };
 
@@ -90,7 +100,17 @@ export default function AIAssistantPanel({ sessionId }) {
             }
         } catch (err) {
             console.error('Transcription error:', err);
-            alert('Transcription failed: ' + err.message);
+            const friendly =
+                err.code === 'session_not_found'
+                    ? 'This analysis has expired. Please upload your document again to start a new session.'
+                    : 'Transcription failed. Please try again.';
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: friendly,
+                isError: true,
+                timestamp: new Date(),
+            }]);
         } finally {
             setIsSubmitting(false);
         }

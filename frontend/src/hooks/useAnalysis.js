@@ -4,7 +4,7 @@
  * Manages SSE connection for real-time progress updates.
  * Handles multiple concurrent analyses.
  */
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { uploadDocument, getAnalysisStatus } from '../services/api';
 import { useAnalysis } from '../context/AnalysisContext';
 
@@ -14,7 +14,6 @@ import { useAnalysis } from '../context/AnalysisContext';
 export function useDocumentAnalysis() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
-  const eventSourceRef = useRef(null);
   const { addSession, updateSession } = useAnalysis();
 
   /**

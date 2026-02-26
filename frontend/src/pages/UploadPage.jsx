@@ -463,11 +463,24 @@ export default function UploadPage() {
                           <AlertTriangle size={14} /> Failed
                         </span>
                       ) : (
-                        <div className="queue-progress-bar-wrapper">
-                          <div className="queue-progress-bar">
-                            <div className="queue-progress-fill" style={{ width: `${session.progress}%` }} />
-                          </div>
-                          <span className="queue-percent">{session.progress}%</span>
+                        <div className="thinking-log">
+                          {session.message_history?.map((msg, idx) => {
+                            const isLast = idx === session.message_history.length - 1;
+                            const isComplete = session.status === 'complete';
+
+                            return (
+                              <div key={idx} className={`thinking-step ${isLast && !isComplete ? 'active' : 'done'}`}>
+                                <div className="step-indicator">
+                                  {isLast && !isComplete ? (
+                                    <Loader2 size={12} className="spinner" />
+                                  ) : (
+                                    <CheckCircle2 size={12} />
+                                  )}
+                                </div>
+                                <span>{msg}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

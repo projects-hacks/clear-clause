@@ -32,18 +32,29 @@ function analysisReducer(state, action) {
       }
       return {
         ...state,
-        sessions: [...state.sessions, action.payload],
+        sessions: [...state.sessions, {
+          ...action.payload,
+          message_history: action.payload.message ? [action.payload.message] : []
+        }],
         activeSessionId: action.payload.session_id,
       };
 
     case ACTIONS.UPDATE_SESSION:
       return {
         ...state,
-        sessions: state.sessions.map(session =>
-          session.session_id === action.payload.session_id
-            ? { ...session, ...action.payload }
-            : session
-        ),
+        sessions: state.sessions.map(session => {
+          if (session.session_id !== action.payload.session_id) return session;
+
+          const updated = { ...session, ...action.payload };
+
+          // Manage message history for thinking logs
+          if (action.payload.message && action.payload.message !== session.message) {
+            const history = session.message_history || (session.message ? [session.message] : []);
+            updated.message_history = [...history, action.payload.message];
+          }
+
+          return updated;
+        }),
       };
 
     case ACTIONS.REMOVE_SESSION:
