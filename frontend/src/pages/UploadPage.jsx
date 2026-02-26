@@ -8,7 +8,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentAnalysis } from '../hooks/useAnalysis';
 import { useAnalysis } from '../context/AnalysisContext';
-import { FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Home, Handshake, Search, Loader2, ArrowLeft, Zap, Brain, Volume2, Scale, ShieldCheck } from 'lucide-react';
+import { Zap, FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Handshake, Search, Loader2, ArrowLeft, Brain, Volume2, Scale, ShieldCheck } from 'lucide-react';
+import ThemeToggle from '../components/common/ThemeToggle';
 
 /**
  * Upload Page
@@ -16,30 +17,36 @@ import { FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Home, Handsh
 export default function UploadPage() {
   const navigate = useNavigate();
   const { startAnalysis, isUploading, error, clearError } = useDocumentAnalysis();
-  const { sessions, addSession, setActiveSession, removeSession } = useAnalysis();
+  const { sessions, addSession, setActiveSession, removeSession, clearComplete } = useAnalysis();
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [duplicateError, setDuplicateError] = useState(null);
+  const [validationError, setValidationError] = useState(null);
+  const [sampleError, setSampleError] = useState(null);
+  const [queueFilter, setQueueFilter] = useState('all'); // all | in_progress | complete | error
 
   /**
    * Handle file selection
    */
   const handleFileSelect = useCallback((file) => {
+    setValidationError(null);
     // Validate file type
     if (file.type !== 'application/pdf') {
-      alert('Please upload a PDF file');
+      setValidationError('Please upload a PDF file.');
       return;
     }
 
     // Validate file size (50MB max)
     const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
-      alert('File size must be less than 50MB');
+      setValidationError('File size must be less than 50MB.');
       return;
     }
 
     setSelectedFile(file);
     clearError();
+    setDuplicateError(null);
   }, [clearError]);
 
   /**
@@ -87,7 +94,7 @@ export default function UploadPage() {
         !['complete', 'error'].includes(s.status)
     );
     if (isDuplicate) {
-      setError(`"${selectedFile.name}" is already being processed.`);
+      setDuplicateError(`"${selectedFile.name}" is already being processed.`);
       return;
     }
 
@@ -109,13 +116,13 @@ export default function UploadPage() {
   const handleSampleDocument = async (docName) => {
     const fileMap = {
       'Airbnb ToS': 'airbnb_tos.pdf',
-      'Sample Lease': 'sample_lease.pdf',
       'NDA Template': 'nda_template.pdf'
     };
 
     const fileName = fileMap[docName];
     if (!fileName) return;
 
+    setSampleError(null);
     try {
       const response = await fetch(`/samples/${fileName}`);
       if (!response.ok) throw new Error('Sample not found');
@@ -124,9 +131,48 @@ export default function UploadPage() {
       const file = new File([blob], fileName, { type: 'application/pdf' });
       handleFileSelect(file);
     } catch (err) {
-      alert(`Could not load sample document: ${docName}`);
+      setSampleError(`Could not load sample: ${docName}. Please try again.`);
     }
   };
+
+  const isInProgressStatus = (status) => !['complete', 'error'].includes(status);
+
+  const formatRelativeTime = (createdAt) => {
+    if (!createdAt) return null;
+    const ts = new Date(createdAt).getTime();
+    if (Number.isNaN(ts)) return null;
+    const diffSeconds = Math.floor((Date.now() - ts) / 1000);
+    if (diffSeconds < 10) return 'just now';
+    if (diffSeconds < 60) return `${diffSeconds}s ago`;
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  const sortedSessions = [...sessions]
+    .sort((a, b) => {
+      const at = a?.created_at ? new Date(a.created_at).getTime() : 0;
+      const bt = b?.created_at ? new Date(b.created_at).getTime() : 0;
+      return bt - at;
+    })
+    .slice(0, 10);
+
+  const counts = {
+    all: sortedSessions.length,
+    in_progress: sortedSessions.filter(s => isInProgressStatus(s.status)).length,
+    complete: sortedSessions.filter(s => s.status === 'complete').length,
+    error: sortedSessions.filter(s => s.status === 'error').length,
+  };
+
+  const sessionsToShow = sortedSessions.filter((s) => {
+    if (queueFilter === 'in_progress') return isInProgressStatus(s.status);
+    if (queueFilter === 'complete') return s.status === 'complete';
+    if (queueFilter === 'error') return s.status === 'error';
+    return true;
+  });
 
   // Warn before closing tab if analyses are in progress
   useEffect(() => {
@@ -151,14 +197,16 @@ export default function UploadPage() {
           <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
           <span className="brand-name">ClearClause</span>
         </div>
-        <div className="nav-links">
+        <div className="nav-links" />
+        <div className="nav-actions">
+          <ThemeToggle />
+          <button
+            className="btn btn-secondary back-btn"
+            onClick={() => navigate('/')}
+          >
+            <ArrowLeft size={16} /> Back
+          </button>
         </div>
-        <button
-          className="btn btn-secondary back-btn"
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
       </nav>
 
       {/* Page Title */}
@@ -190,29 +238,38 @@ export default function UploadPage() {
       </div>
 
       {/* Main Content */}
-      <main className="upload-content">
+      <main className="upload-content" id="main-content">
         {/* Drop Zone */}
         <div
           className={`drop-zone ${dragOver ? 'drag-over' : ''} ${selectedFile ? 'has-file' : ''}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          role="region"
+          aria-label="File drop zone"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              document.getElementById('file-input')?.click();
+            }
+          }}
         >
           {!selectedFile ? (
             <>
-              <div className="drop-zone-icon"><FileUp size={48} color="var(--accent-primary)" /></div>
+              <div className="drop-zone-icon" aria-hidden="true"><FileUp size={48} color="var(--accent-primary)" /></div>
               <h2>Drag & drop your document</h2>
               <p>or click to browse</p>
               <p className="drop-zone-hint">Supports: PDF (up to 50MB)</p>
-              <p className="drop-zone-security"><ShieldCheck size={14} /> Encrypted in transit · Auto-deleted after 30 min</p>
+              <p className="drop-zone-security"><ShieldCheck size={14} aria-hidden="true" /> Encrypted in transit · Auto-deleted after 30 min</p>
               <input
                 type="file"
                 accept=".pdf,application/pdf"
                 onChange={handleInputChange}
                 className="file-input"
                 id="file-input"
+                aria-label="Select PDF file to upload"
               />
-              <label htmlFor="file-input" className="btn btn-secondary">
+              <label htmlFor="file-input" className="btn btn-secondary" role="button" tabIndex={0}>
                 Browse Files
               </label>
             </>
@@ -231,11 +288,27 @@ export default function UploadPage() {
           )}
         </div>
 
+        {/* Validation Error */}
+        {validationError && (
+          <div className="error-message" role="alert" aria-live="assertive">
+            <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+            {validationError}
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
-          <div className="error-message">
-            <span className="error-icon"><AlertTriangle size={18} /></span>
+          <div className="error-message" role="alert" aria-live="assertive">
+            <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
             {error}
+          </div>
+        )}
+
+        {/* Duplicate Error Message */}
+        {duplicateError && (
+          <div className="error-message" role="alert" aria-live="assertive">
+            <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+            {duplicateError}
           </div>
         )}
 
@@ -261,32 +334,53 @@ export default function UploadPage() {
 
         {/* Sample Documents */}
         <div className="sample-documents">
-          <p className="sample-label">Or try a sample document:</p>
-          <div className="sample-grid">
-            <button
-              className="btn btn-secondary sample-btn"
-              onClick={() => handleSampleDocument('Airbnb ToS')}
-            >
-              <Smartphone size={16} /> Airbnb ToS
-            </button>
-            <button
-              className="btn btn-secondary sample-btn"
-              onClick={() => handleSampleDocument('Sample Lease')}
-            >
-              <Home size={16} /> Sample Lease
-            </button>
-            <button
-              className="btn btn-secondary sample-btn"
-              onClick={() => handleSampleDocument('NDA Template')}
-            >
-              <Handshake size={16} /> NDA Template
-            </button>
+          <div className="sample-section-header">
+            <h3>See a Real-World Example</h3>
+            <p>Don't have a document ready? Discover how ClearClause spots hidden risks in common contracts.</p>
           </div>
+
+          <div className="sample-cards-grid">
+            <div
+              className="sample-doc-card"
+              onClick={() => handleSampleDocument('Airbnb ToS')}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('Airbnb ToS') }}
+            >
+              <div className="sample-icon purple"><Smartphone size={24} /></div>
+              <div className="sample-info">
+                <h4>App Terms of Service</h4>
+                <p>See exactly what data you're giving away and if you're waiving your right to sue.</p>
+              </div>
+              <div className="sample-action"><Search size={14} /> Analyze ToS</div>
+            </div>
+
+            <div
+              className="sample-doc-card"
+              onClick={() => handleSampleDocument('NDA Template')}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('NDA Template') }}
+            >
+              <div className="sample-icon green"><Handshake size={24} /></div>
+              <div className="sample-info">
+                <h4>Freelance NDA</h4>
+                <p>Check for overly broad IP assignments or unreasonable non-compete clauses.</p>
+              </div>
+              <div className="sample-action"><Search size={14} /> Analyze NDA</div>
+            </div>
+          </div>
+          {sampleError && (
+            <div className="error-message" role="alert" style={{ marginTop: 'var(--space-4)' }}>
+              <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+              {sampleError}
+            </div>
+          )}
         </div>
 
         {/* Processing Queue */}
         {sessions.length > 0 && (
-          <div className="processing-queue">
+          <div className="processing-queue" aria-live="polite" aria-atomic="false">
             <h3>
               <Loader2 size={16} className={sessions.some(s => s.status !== 'complete' && s.status !== 'error') ? 'spinner' : ''} />
               Processing Queue
