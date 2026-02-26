@@ -17,7 +17,7 @@ settings = get_settings()
 
 async def chat_with_document(
     question: str,
-    document_context: AnalysisResult,
+    document_context: dict,
     max_tokens: int = 512,
 ) -> ChatResponse:
     """
@@ -27,7 +27,7 @@ async def chat_with_document(
 
     Args:
         question: User's question
-        document_context: Analysis result from earlier analysis
+        document_context: Analysis result dict from earlier analysis
         max_tokens: Max tokens in response
 
     Returns:
@@ -35,7 +35,7 @@ async def chat_with_document(
     """
     logger.info(
         "Chat request",
-        document=document_context.document_name,
+        document=document_context.get('document_name', 'unknown'),
         question=question,
         max_tokens=max_tokens
     )
@@ -61,7 +61,7 @@ async def chat_with_document(
 
 async def _call_gemini_chat(
     question: str,
-    document_context: AnalysisResult,
+    document_context: dict,
     max_tokens: int,
 ) -> ChatResponse:
     """Call Gemini for chat response."""
@@ -72,19 +72,29 @@ async def _call_gemini_chat(
         
         # Prepare clauses summary for context
         clauses_summary = []
-        for clause in document_context.clauses[:20]:  # Limit context
+        clauses = document_context.get('clauses', [])
+        for clause in clauses[:50]:  # Expand context limit
+            clause_id = clause.get('clause_id', 'unknown')
+            text = clause.get('text', '')  # Full text
+            plain = clause.get('plain_language', '')
+            category = clause.get('category', 'unknown')
+            severity = clause.get('severity', 'unknown')
             clauses_summary.append(
-                f"- {clause.clause_id}: {clause.text[:100]}... "
-                f"({clause.category}, {clause.severity})"
+                f"--- Clause: {clause_id} ---\n"
+                f"Category: {category}\n"
+                f"Severity: {severity}\n"
+                f"Original Text: {text}\n"
+                f"Plain Language: {plain}\n"
             )
         clauses_text = "\n".join(clauses_summary)
         
         # Build prompt
         user_prompt = CHAT_USER_PROMPT.format(
-            document_name=document_context.document_name,
-            document_type=document_context.document_type,
-            summary=document_context.summary,
-            top_concerns="\n".join(f"- {c}" for c in document_context.top_concerns),
+            document_name=document_context.get('document_name', 'Unknown'),
+            document_type=document_context.get('document_type', 'Unknown'),
+            document_text=document_context.get('document_text', 'No text available'),
+            summary=document_context.get('summary', 'No summary available'),
+            top_concerns="\n".join(f"- {c}" for c in document_context.get('top_concerns', [])),
             clauses_json=clauses_text,
             question=question,
         )

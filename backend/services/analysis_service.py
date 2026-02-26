@@ -130,7 +130,7 @@ class GeminiAnalysisService:
                 contents=f"{system_prompt}\n\n{user_prompt}",
                 config=genai.types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=0.1,  # Low temperature for consistent analysis
+                    temperature=0.0,  # Strict temperature for deterministic analysis
                     max_output_tokens=8192,
                 )
             )
@@ -155,7 +155,7 @@ class GeminiAnalysisService:
             )
             
             # Build AnalysisResult
-            return self._build_analysis_result(response_data, document_name)
+            return self._build_analysis_result(response_data, document_name, document_text)
             
         except json.JSONDecodeError as e:
             logger.error("Failed to parse Gemini JSON response", error=str(e))
@@ -175,6 +175,7 @@ class GeminiAnalysisService:
         self,
         response_data: Dict[str, Any],
         document_name: str,
+        document_text: str,
     ) -> AnalysisResult:
         """Build AnalysisResult from Gemini response."""
         clauses_data = response_data.get("clauses", [])
@@ -210,6 +211,7 @@ class GeminiAnalysisService:
         return AnalysisResult(
             document_name=document_name,
             document_type=response_data.get("document_type", "other"),
+            document_text=document_text,
             total_clauses=len(clauses),
             flagged_clauses=flagged_count,
             clauses=clauses,

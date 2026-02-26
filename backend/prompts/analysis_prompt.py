@@ -88,6 +88,11 @@ CHAT_USER_PROMPT = """
 Document: {document_name}
 Document Type: {document_type}
 
+Original Document Text:
+---
+{document_text}
+---
+
 Analysis Summary:
 {summary}
 
