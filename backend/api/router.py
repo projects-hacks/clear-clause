@@ -161,10 +161,13 @@ async def analyze_document(
         
     except FileValidationError as e:
         logger.warning("File validation failed", error=e.message)
-        # Return error as SSE event
+        # Capture values outside the generator to avoid NameError once the except scope exits
+        error_code = e.error_code
+        message = e.message
+
         async def error_generator():
-            yield f"data: {json.dumps({'error': e.error_code, 'message': e.message})}\n\n"
-        
+            yield f"data: {json.dumps({'error': error_code, 'message': message})}\n\n"
+
         return StreamingResponse(
             error_generator(),
             media_type="text/event-stream",
