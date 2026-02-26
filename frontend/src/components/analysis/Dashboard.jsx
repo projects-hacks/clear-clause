@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import ClauseCard from './ClauseCard';
 import CategoryBar from './CategoryBar';
 import FairnessCompare from './FairnessCompare';
-import { AlertTriangle, ClipboardList, Scale, FileSearch } from 'lucide-react';
+import { AlertTriangle, ClipboardList, Scale, FileSearch, ShieldCheck } from 'lucide-react';
 
 /**
  * Dashboard
@@ -57,6 +57,29 @@ export default function Dashboard({ result, onClauseSelect }) {
                 <span className="concern-icon"><AlertTriangle size={16} className="text-warning" /></span>
                 <span className="concern-text">{concern}</span>
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* PII Shield */}
+      {result.pii_redacted_count > 0 && (
+        <div className="dashboard-section pii-shield-card">
+          <div className="pii-header">
+            <div className="pii-icon-wrapper">
+              <ShieldCheck size={24} className="pii-icon" />
+            </div>
+            <div>
+              <h3>Privacy Protected</h3>
+              <p className="pii-desc">
+                Automatically masked <strong>{result.pii_redacted_count}</strong> personal
+                data points before AI analysis.
+              </p>
+            </div>
+          </div>
+          <div className="pii-tags">
+            {result.pii_categories?.map(cat => (
+              <span key={cat} className="pii-tag">{cat}</span>
             ))}
           </div>
         </div>
