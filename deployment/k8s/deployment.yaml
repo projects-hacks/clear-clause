@@ -43,7 +43,7 @@ spec:
               name: clearclause-secrets
               key: deepgram-api-key
         - name: FRONTEND_URL
-          value: "https://clearclause.vercel.app"
+        value: "https://clearclause.vercel.app,https://clear-clause-theta.vercel.app"
         - name: MAX_FILE_SIZE_MB
           value: "50"
         - name: MAX_CONCURRENT_ANALYSES
