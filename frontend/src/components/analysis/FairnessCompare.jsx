@@ -5,7 +5,7 @@
  * Shows "Your doc vs typical" comparison.
  */
 import React, { useState } from 'react';
-import { CATEGORIES } from '../../utils/constants';
+import { CATEGORIES, getCategoryByKey } from '../../utils/constants';
 import { BarChart2, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
 
 /**
@@ -59,7 +59,7 @@ export default function FairnessCompare({ result }) {
         {Object.entries(comparisonsByCategory).map(([category, clauses]) => {
           if (clauses.length === 0) return null;
 
-          const categoryInfo = CATEGORIES[category.toUpperCase().replace('_', '')] || {};
+          const categoryInfo = getCategoryByKey(category) || {};
           const isExpanded = expandedSection === category;
 
           return (
@@ -69,7 +69,17 @@ export default function FairnessCompare({ result }) {
             >
               <div
                 className="comparison-header"
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
+                aria-label={`${categoryInfo.label || category}: ${clauses.length} clauses`}
                 onClick={() => setExpandedSection(isExpanded ? null : category)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setExpandedSection(isExpanded ? null : category);
+                  }
+                }}
               >
                 <div className="comparison-title">
                   <span className="category-icon">{categoryInfo.icon || <BarChart2 size={16} />}</span>

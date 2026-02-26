@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { AlertOctagon, AlertTriangle, Info, CheckCircle2, MessageCircle, BarChart2, Lightbulb, Copy, MapPin, ChevronUp, ChevronDown } from 'lucide-react';
+import { CATEGORIES, SEVERITIES } from '../../utils/constants';
 
 /**
  * Clause Card
@@ -21,53 +22,51 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
     page_number,
   } = clause;
 
-  const categoryLabels = {
-    rights_given_up: 'Rights Given Up',
-    one_sided: 'One-Sided',
-    financial_impact: 'Financial Impact',
-    missing_protection: 'Missing Protection',
-    standard: 'Standard',
-  };
-
-  const severityIcons = {
-    critical: <AlertOctagon size={14} />,
-    warning: <AlertTriangle size={14} />,
-    info: <Info size={14} />,
-    safe: <CheckCircle2 size={14} />,
-  };
+  const categoryData = Object.values(CATEGORIES).find(c => c.key === category) || CATEGORIES.STANDARD;
+  const severityData = Object.values(SEVERITIES).find(s => s.key === severity) || SEVERITIES.INFO;
 
   return (
-    <div 
+    <div
       className={`clause-card ${category} ${severity} ${isExpanded ? 'expanded' : ''}`}
       onClick={onToggle}
+      role="button"
+      tabIndex={0}
+      aria-expanded={isExpanded}
+      aria-label={`Clause: ${plain_language ? (plain_language.length > 50 ? plain_language.slice(0, 50) + '...' : plain_language) : 'Expand for details'}`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
     >
       {/* Card Header */}
       <div className="clause-card-header">
         <div className="clause-badges">
-          <span className={`badge badge-${category}`}>
-            {categoryLabels[category]}
+          <span className={`badge`} style={{ backgroundColor: categoryData.bgLight, color: categoryData.color, border: `1px solid ${categoryData.color}40` }}>
+            {categoryData.icon} {categoryData.label}
           </span>
-          <span className={`badge badge-${severity}`}>
-            {severityIcons[severity]} {severity}
+          <span className={`badge`} style={{ backgroundColor: `${severityData.color}20`, color: severityData.color, border: `1px solid ${severityData.color}40` }}>
+            {severityData.icon} {severityData.label}
           </span>
         </div>
         <span className="clause-page">Page {page_number}</span>
       </div>
 
-      {/* Clause Text */}
+      {/* Clause Text (Plain Language by default) */}
       <div className="clause-text">
-        <p>{text.length > 200 && !isExpanded ? `${text.slice(0, 200)}...` : text}</p>
+        <p className="plain-language">{plain_language}</p>
       </div>
 
       {/* Expanded Content */}
       {isExpanded && (
         <div className="clause-card-content">
-          {/* Plain Language Explanation */}
+          {/* Original Text */}
           <div className="clause-section">
             <div className="section-label">
-              <MessageCircle size={14} /> What This Means
+              <MessageCircle size={14} /> Original Clause
             </div>
-            <p className="plain-language">{plain_language}</p>
+            <p className="original-text">{text}</p>
           </div>
 
           {/* Typical Comparison */}
@@ -105,7 +104,7 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
               className="btn btn-secondary btn-small"
               onClick={(e) => {
                 e.stopPropagation();
-                onClick();
+                if (onClick) onClick();
               }}
             >
               <MapPin size={14} /> Jump to Page

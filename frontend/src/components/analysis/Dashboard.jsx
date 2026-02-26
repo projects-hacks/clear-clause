@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import ClauseCard from './ClauseCard';
 import CategoryBar from './CategoryBar';
 import FairnessCompare from './FairnessCompare';
-import { AlertTriangle, ClipboardList, Scale } from 'lucide-react';
+import { AlertTriangle, ClipboardList, Scale, FileSearch } from 'lucide-react';
 
 /**
  * Dashboard
@@ -31,8 +31,8 @@ export default function Dashboard({ result, onClauseSelect }) {
   return (
     <div className="dashboard">
       {/* Summary Card */}
-      <div className="dashboard-section">
-        <h3>Summary</h3>
+      <div className="dashboard-section summary-card">
+        <h3>What This Means</h3>
         <p className="summary-text">{result.summary}</p>
       </div>
 
@@ -112,17 +112,39 @@ export default function Dashboard({ result, onClauseSelect }) {
           </div>
 
           <div className="clauses-list">
-            {sortedClauses.map((clause) => (
-              <ClauseCard
-                key={clause.clause_id}
-                clause={clause}
-                isExpanded={expandedClause === clause.clause_id}
-                onToggle={() => setExpandedClause(
-                  expandedClause === clause.clause_id ? null : clause.clause_id
+            {sortedClauses.length === 0 ? (
+              <div className="clauses-empty-state">
+                <FileSearch size={40} className="empty-icon" />
+                <p className="empty-title">
+                  {selectedCategory ? 'No clauses in this category' : 'No clauses found'}
+                </p>
+                <p className="empty-desc">
+                  {selectedCategory
+                    ? 'Try selecting a different category from the breakdown above.'
+                    : 'This document may not have extracted clauses.'}
+                </p>
+                {selectedCategory && (
+                  <button
+                    className="btn btn-secondary btn-small"
+                    onClick={() => setSelectedCategory(null)}
+                  >
+                    Clear Filter
+                  </button>
                 )}
-                onClick={() => onClauseSelect(clause.clause_id)}
-              />
-            ))}
+              </div>
+            ) : (
+              sortedClauses.map((clause) => (
+                <ClauseCard
+                  key={clause.clause_id}
+                  clause={clause}
+                  isExpanded={expandedClause === clause.clause_id}
+                  onToggle={() => setExpandedClause(
+                    expandedClause === clause.clause_id ? null : clause.clause_id
+                  )}
+                  onClick={() => onClauseSelect(clause.clause_id)}
+                />
+              ))
+            )}
           </div>
         </div>
       ) : (

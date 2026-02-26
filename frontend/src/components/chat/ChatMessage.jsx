@@ -1,9 +1,22 @@
 /**
  * Chat Message Component
- * 
+ *
  * Individual message bubble for chat interface.
+ * Renders simple markdown (bold, newlines) for assistant messages.
  */
 import React from 'react';
+
+/**
+ * Parse simple markdown: **bold** and newlines
+ */
+function renderSimpleMarkdown(text) {
+  if (!text || typeof text !== 'string') return text;
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    const bold = part.match(/^\*\*(.+)\*\*$/);
+    return bold ? <strong key={i}>{bold[1]}</strong> : part;
+  });
+}
 
 /**
  * Chat Message
@@ -13,6 +26,19 @@ export default function ChatMessage({ message }) {
 
   const isUser = role === 'user';
 
+  const formattedContent = isUser ? (
+    content
+  ) : (
+    <div className="message-text-formatted">
+      {String(content).split('\n').map((line, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <br />}
+          {renderSimpleMarkdown(line)}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
   return (
     <div className={`chat-message ${isUser ? 'user' : 'assistant'} ${isError ? 'error' : ''}`}>
       <div className="message-avatar">
@@ -20,8 +46,8 @@ export default function ChatMessage({ message }) {
       </div>
       
       <div className="message-content">
-        <div className="message-text">
-          {content}
+        <div className={`message-text ${!isUser ? 'has-markdown' : ''}`}>
+          {formattedContent}
         </div>
         
         {/* Source References */}
