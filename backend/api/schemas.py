@@ -104,6 +104,7 @@ class AnalysisResult(BaseModel):
     document_type: str = Field(
         description="Detected type: lease|employment|insurance|tos|nda|medical|financial|other"
     )
+    document_text: str = Field(default="", description="Full OCR text context for Q&A")
     total_clauses: int
     flagged_clauses: int = Field(description="Count of non-standard clauses")
     clauses: List[ClauseClassification]

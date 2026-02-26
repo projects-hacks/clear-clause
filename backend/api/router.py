@@ -263,6 +263,27 @@ async def chat(
     return response
 
 
+@router.post("/transcribe")
+async def transcribe_audio_endpoint(
+    file: UploadFile = File(...),
+    session: AnalysisSession = Depends(validate_session),
+) -> dict:
+    """
+    Transcribe audio from user microphone using Deepgram Nova-2.
+    """
+    from services.stt_service import transcribe_audio
+    
+    logger.info("Transcription request", session_id=session.session_id)
+    
+    try:
+        audio_bytes = await file.read()
+        transcript = await transcribe_audio(audio_bytes)
+        return {"transcript": transcript}
+    except Exception as e:
+        logger.error("Transcription failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
+
 @router.post("/voice-summary")
 async def voice_summary(
     request: VoiceSummaryRequest,

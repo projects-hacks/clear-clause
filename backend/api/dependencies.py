@@ -5,8 +5,7 @@ Provides reusable dependencies for API routes.
 """
 from functools import lru_cache
 from typing import AsyncGenerator
-
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 import structlog
 
@@ -90,26 +89,51 @@ def validate_file_upload(
     - File type is PDF
     - File size within limit
     - Filename is valid
+    - PDF header is valid
+    - File is not empty
     
     Returns sanitized filename.
     """
+    # Check file is not empty
+    if len(file_bytes) == 0:
+        raise FileValidationError(
+            message="File is empty",
+            error_code="EMPTY_FILE",
+            recovery="Please select a non-empty PDF file."
+        )
+    
     # Check content type
     if content_type != "application/pdf":
         raise FileValidationError(
-            message=f"Invalid file type. Expected PDF, got {content_type}"
+            message=f"Invalid file type: {content_type}. Only PDF files are accepted.",
+            error_code="INVALID_FILE_TYPE",
+            recovery="Please convert your document to PDF format and try again."
         )
     
     # Check file size
     max_size = settings.max_file_size_bytes
     if len(file_bytes) > max_size:
+        file_size_mb = len(file_bytes) / (1024 * 1024)
         raise FileValidationError(
-            message=f"File too large. Max size is {settings.max_file_size_mb}MB"
+            message=f"File too large: {file_size_mb:.2f}MB. Maximum size is {settings.max_file_size_mb}MB.",
+            error_code="FILE_TOO_LARGE",
+            recovery=f"Compress your PDF or split it into smaller files (max {settings.max_file_size_mb}MB each)."
         )
     
     # Check file extension
     if not filename.lower().endswith(".pdf"):
         raise FileValidationError(
-            message="File must have .pdf extension"
+            message="File must have .pdf extension",
+            error_code="INVALID_EXTENSION",
+            recovery="Please rename your file to end with .pdf or convert it to PDF format."
+        )
+    
+    # Check PDF header (basic validation)
+    if len(file_bytes) < 5 or not file_bytes[:5] == b"%PDF-":
+        raise FileValidationError(
+            message="File is not a valid PDF or may be corrupted",
+            error_code="CORRUPTED_FILE",
+            recovery="Please re-download or re-scan the original document. Make sure it's not password-protected."
         )
     
     # Sanitize filename (basic security)
