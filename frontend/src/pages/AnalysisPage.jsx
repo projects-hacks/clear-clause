@@ -8,7 +8,7 @@
  * 
  * Supports multiple concurrent analyses via session management.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAnalysis } from '../context/AnalysisContext';
 import { useDocumentAnalysis, useChat } from '../hooks/useAnalysis';
@@ -37,6 +37,42 @@ export default function AnalysisPage() {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'chat'
   const [elapsedTime, setElapsedTime] = useState(0);
   const [selectedClauseId, setSelectedClauseId] = useState(null);
+
+  // Resizable sidebar state
+  const [sidebarWidth, setSidebarWidth] = useState(400);
+  const [resizing, setResizing] = useState(false);
+  const resizeRef = useRef(null);
+  const startX = useRef(0);
+  const startWidth = useRef(400);
+
+  const SIDEBAR_MIN = 280;
+  const SIDEBAR_MAX = 700;
+
+  // Pointer Capture approach: the resize handle captures ALL pointer events
+  // during drag, so iframes (like Apryse WebViewer) cannot steal them.
+  const onPointerDown = useCallback((e) => {
+    e.target.setPointerCapture(e.pointerId);
+    setResizing(true);
+    startX.current = e.clientX;
+    startWidth.current = sidebarWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [sidebarWidth]);
+
+  const onPointerMove = useCallback((e) => {
+    if (!resizing) return;
+    const delta = startX.current - e.clientX;
+    const newWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWidth.current + delta));
+    setSidebarWidth(newWidth);
+  }, [resizing]);
+
+  const onPointerUp = useCallback((e) => {
+    if (!resizing) return;
+    e.target.releasePointerCapture(e.pointerId);
+    setResizing(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, [resizing]);
 
   // Find current session
   const session = sessions.find(s => s.session_id === sessionId);
@@ -327,14 +363,12 @@ export default function AnalysisPage() {
       {/* Header */}
       <header className="analysis-header">
         <div className="header-left">
-          <nav className="landing-nav" style={{ borderBottom: 'none', padding: 0, background: 'transparent', position: 'relative' }}>
-            <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
-              <Zap className="logo-icon" size={24} color="var(--accent-primary)" />
-              <span className="brand-name">ClearClause</span>
-            </div>
-          </nav>
-          <span style={{ color: 'var(--surface-border)', margin: '0 var(--space-3)' }}>|</span>
-          <h2 style={{ fontSize: 'var(--text-base)', margin: 0 }}>{session.document_name}</h2>
+          <div className="nav-brand" style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => navigate('/')}>
+            <Zap className="logo-icon" size={24} color="var(--accent-primary)" />
+            <span className="brand-name">ClearClause</span>
+          </div>
+          <span className="header-divider">|</span>
+          <h2 className="header-doc-name">{session.document_name}</h2>
           {session.result && (
             <span className="clause-count">
               {session.result.total_clauses} clauses · {session.result.flagged_clauses} flagged
@@ -387,8 +421,28 @@ export default function AnalysisPage() {
           />
         </div>
 
+        {/* Resize Handle — uses Pointer Capture for iframe-safe dragging */}
+        <div
+          className={`resize-handle ${resizing ? 'active' : ''}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          style={{ touchAction: 'none' }}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              setSidebarWidth(w => Math.min(SIDEBAR_MAX, w + 20));
+            } else if (e.key === 'ArrowRight') {
+              setSidebarWidth(w => Math.max(SIDEBAR_MIN, w - 20));
+            }
+          }}
+        />
+
         {/* Right: Dashboard or Chat */}
-        <div className="side-panel">
+        <div className="side-panel" style={{ width: sidebarWidth }}>
           <AnalysisOnboarding />
           {activeTab === 'dashboard' && session.result && (
             <Dashboard
