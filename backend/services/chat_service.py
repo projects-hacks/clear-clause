@@ -51,7 +51,7 @@ def _select_relevant_clauses(
     }
     import re
 
-    tokens = [t for t in re.findall(r"\\w+", q) if t not in stopwords]
+    tokens = [t for t in re.findall(r"\w+", q) if t not in stopwords]
     if not tokens:
         return clauses[:max_clauses]
 

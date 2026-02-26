@@ -211,9 +211,12 @@ async def run_analysis_pipeline(
         
         try:
             # Pass REDACTED text to Gemini, not raw OCR text
+            session = await session_manager.get_session(session_id)
+            document_name = session.document_name if session else 'document.pdf'
+
             analysis_result = await analyze_document_with_gemini(
                 document_text=redacted_text,
-                document_name=session_manager._sessions[session_id].document_name if session_id in session_manager._sessions else "document.pdf",
+                document_name=document_name,
                 session_id=session_id,
             )
             
@@ -289,10 +292,13 @@ async def run_analysis_pipeline(
             result=analysis_result.model_dump()
         )
         
+        session = await session_manager.get_session(session_id)
+        document_name = session.document_name if session else 'document.pdf'
+
         logger.info(
             "Pipeline complete",
             session_id=session_id,
-            document_name=session_manager._sessions[session_id].document_name if session_id in session_manager._sessions else "document.pdf"
+            document_name=document_name,
         )
         
     except OCRError as e:

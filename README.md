@@ -102,6 +102,17 @@ Each upload gets a unique session. Multiple documents can be analyzed simultaneo
 | **Deployment** | Akamai LKE + Vercel | Kubernetes backend, static frontend |
 | **CI/CD** | GitHub Actions | Auto-deploy on push to main |
 
+## 📌 Project Status
+
+ClearClause is currently a **hackathon-grade MVP**, not a hardened production service. It is suitable for demos, prototypes, and internal trials, but **should not be exposed to untrusted traffic without additional hardening**, including:
+
+- Authentication and authorization for all `/api/*` routes
+- Stronger file validation beyond basic content-type and extension checks (for example, magic-byte validation for PDFs)
+- Stricter rate limiting and quotas per user or API key
+- Improved cleanup guarantees for temporary files in failure and restart scenarios
+
+These safeguards are called out in the code comments and issue backlog as next steps for a production-ready version.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
