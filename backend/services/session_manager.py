@@ -9,7 +9,7 @@ Handles concurrent analysis sessions with:
 """
 import asyncio
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
@@ -115,9 +115,9 @@ class AnalysisSession:
     progress: int = 0
     message: str = "Document received"
     error: Optional[str] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-    expires_at: datetime = field(default_factory=lambda: datetime.utcnow() + timedelta(minutes=30))
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(minutes=30))
     
     # Analysis result (populated on completion)
     result: Optional[Dict[str, Any]] = None
@@ -129,11 +129,11 @@ class AnalysisSession:
     
     def is_expired(self) -> bool:
         """Check if session has expired."""
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
     
     def touch(self) -> None:
         """Update session timestamp to prevent cleanup."""
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert session to dictionary for API responses."""
@@ -165,6 +165,7 @@ class SessionManager:
         self._cleanup_interval = cleanup_interval_minutes * 60  # Convert to seconds
         self._cleanup_task: Optional[asyncio.Task] = None
         self._use_db = _is_session_db_enabled()
+        self._tasks: Dict[str, asyncio.Task] = {}
 
         logger.info(
             "SessionManager initialized",
@@ -212,9 +213,9 @@ class SessionManager:
                     """
                     DELETE FROM analysis_sessions
                     WHERE expires_at < $1
-                    RETURNING temp_file_path
+                    RETURNING session_id, temp_file_path
                     """,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 )
 
             count = len(rows)
@@ -222,12 +223,17 @@ class SessionManager:
                 import os
 
                 for row in rows:
+                    sid = row["session_id"]
                     path = row["temp_file_path"]
                     if path:
                         try:
                             os.remove(path)
                         except OSError:
                             pass
+                    # Best-effort cancel of any in-memory task for this session
+                    task = self._tasks.pop(sid, None)
+                    if task and not task.done():
+                        task.cancel()
 
                 logger.info("Cleaned up expired DB sessions", count=count)
 
@@ -247,6 +253,10 @@ class SessionManager:
                         os.remove(session.temp_file_path)
                     except OSError:
                         pass
+                # Best-effort cancel of any in-memory task for this session
+                task = self._tasks.pop(sid, None)
+                if task and not task.done():
+                    task.cancel()
                 del self._sessions[sid]
 
             if expired_ids:
@@ -265,7 +275,7 @@ class SessionManager:
             New AnalysisSession instance
         """
         session_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expires_at = now + timedelta(minutes=self._ttl_minutes)
         session = AnalysisSession(
             session_id=session_id,
@@ -354,7 +364,7 @@ class SessionManager:
                       AND expires_at > $2
                     """,
                     session_id,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 )
 
             if row is None:
@@ -457,7 +467,7 @@ class SessionManager:
                 if result is not None:
                     current_result = result
 
-                updated_at = datetime.utcnow()
+                updated_at = datetime.now(timezone.utc)
 
                 await conn.execute(
                     """
@@ -518,7 +528,7 @@ class SessionManager:
             if result is not None:
                 session.result = result
 
-            session.updated_at = datetime.utcnow()
+            session.updated_at = datetime.now(timezone.utc)
             session.touch()
 
             return session
@@ -534,6 +544,11 @@ class SessionManager:
             pool = await _get_session_pool()
             if pool is None:
                 return False
+
+            # Best-effort cancel of any in-memory task for this session
+            task = self._tasks.pop(session_id, None)
+            if task and not task.done():
+                task.cancel()
 
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
@@ -561,6 +576,11 @@ class SessionManager:
             return True
 
         async with self._lock:
+            # Best-effort cancel of any in-memory task for this session
+            task = self._tasks.pop(session_id, None)
+            if task and not task.done():
+                task.cancel()
+
             session = self._sessions.pop(session_id, None)
 
             if session is None:
@@ -593,7 +613,7 @@ class SessionManager:
                     FROM analysis_sessions
                     WHERE expires_at > $1
                     """,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 )
             return int(row["count"]) if row else 0
 
@@ -658,6 +678,13 @@ class SessionManager:
                 s for s in self._sessions.values()
                 if not s.is_expired()
             ]
+
+    def register_task(self, session_id: str, task: asyncio.Task) -> None:
+        """
+        Track a background analysis task for a session so it can be cancelled
+        on session deletion or expiry.
+        """
+        self._tasks[session_id] = task
 
 
 # Global session manager instance (injected via FastAPI dependencies)

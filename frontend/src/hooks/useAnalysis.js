@@ -121,6 +121,10 @@ export function useChat() {
   const [error, setError] = useState(null);
 
   const sendMessage = useCallback(async (sessionId, question) => {
+    if (isLoading) {
+      // Drop duplicate submissions while a request is in flight.
+      return null;
+    }
     setIsLoading(true);
     setError(null);
 

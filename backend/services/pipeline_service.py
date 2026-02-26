@@ -97,6 +97,12 @@ def match_clause_positions(
                             },
                         }
 
+                        # Early exit if we have an excellent match to
+                        # avoid scanning the rest of the document on
+                        # very large files.
+                        if best_match_score >= 0.95:
+                            break
+
         # Update clause with position if found
         if best_match:
             clause.page_number = best_match["page_number"]

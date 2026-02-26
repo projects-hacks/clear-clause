@@ -27,6 +27,8 @@ from api.dependencies import (
     check_concurrent_limit,
     validate_file_upload,
     get_settings_dep,
+    require_admin_auth,
+    enforce_per_ip_analysis_limit,
 )
 from services.session_manager import SessionManager, AnalysisSession, SessionStatus as SessionStatusEnum
 from config import Settings
@@ -80,6 +82,7 @@ async def analyze_document(
     file: UploadFile = File(..., description="PDF document to analyze"),
     session_manager: SessionManager = Depends(get_session_manager_dep),
     settings: Settings = Depends(get_settings_dep),
+    _ip_guard: None = Depends(enforce_per_ip_analysis_limit),
 ) -> StreamingResponse:
     """
     Upload a PDF document and start analysis pipeline.
@@ -106,7 +109,7 @@ async def analyze_document(
             settings=settings,
         )
         
-        # Check concurrent limit
+        # Check global concurrent analysis limit
         await check_concurrent_limit(session_manager=session_manager, settings=settings)
         
         # Create new session
@@ -140,13 +143,15 @@ async def analyze_document(
         # Start pipeline in background (don't block SSE response)
         from services.pipeline_service import run_analysis_pipeline
         
-        asyncio.create_task(
+        task = asyncio.create_task(
             run_analysis_pipeline(
                 session_id=session.session_id,
                 temp_file_path=temp_path,
                 session_manager=session_manager,
             )
         )
+        # Track task so it can be cancelled on session deletion/expiry
+        session_manager.register_task(session.session_id, task)
         
         # Return SSE stream for progress updates
         return StreamingResponse(
@@ -195,6 +200,10 @@ async def get_analysis_status(
 
     Polling alternative to SSE stream.
     """
+    # Only include full result payload once analysis is complete to avoid
+    # repeatedly sending large document_text fields during polling.
+    result = session.result if session.status == SessionStatusEnum.COMPLETE else None
+
     return SessionStatus(
         session_id=session.session_id,
         document_name=session.document_name,
@@ -203,7 +212,7 @@ async def get_analysis_status(
         message=session.message,
         error=session.error,
         created_at=session.created_at.isoformat(),
-        result=session.result,
+        result=result,
     )
 
 
@@ -331,6 +340,7 @@ async def voice_summary(
 @router.get("/sessions")
 async def list_sessions(
     session_manager: SessionManager = Depends(get_session_manager_dep),
+    _admin: None = Depends(require_admin_auth),
 ) -> list[SessionStatus]:
     """
     List all active analysis sessions.

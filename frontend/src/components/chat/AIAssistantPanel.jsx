@@ -177,10 +177,10 @@ export default function AIAssistantPanel({ sessionId }) {
                 <button
                     className={`voice-toggle-btn ${isVoiceOn ? 'active' : ''}`}
                     onClick={toggleVoice}
-                    title={isVoiceOn ? "Mute AI Voice" : "Enable AI Voice"}
+                    title={isVoiceOn ? "Stop reading responses aloud" : "Read AI responses aloud"}
                 >
                     {isVoiceOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                    {isVoiceOn ? 'Voice On' : 'Voice Off'}
+                    {isVoiceOn ? 'Read Aloud On' : 'Read Aloud Off'}
                 </button>
             </div>
 

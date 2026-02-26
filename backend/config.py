@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     max_file_size_mb: int = 50
     max_concurrent_analyses: int = 5
+    max_concurrent_analyses_per_ip: int = 3
     
     # Rate Limiting
     gemini_requests_per_minute: int = 8
@@ -45,6 +46,10 @@ class Settings(BaseSettings):
     
     # Logging
     log_level: str = "INFO"
+
+    # Simple admin API key for protecting debug/admin endpoints like /api/sessions.
+    # When unset, those endpoints remain unauthenticated (hackathon/demo mode).
+    admin_api_key: str | None = None
 
     # Vector store / embeddings (optional, for RAG-style chat)
     # Example: postgresql+psycopg://user:pass@host:5432/dbname

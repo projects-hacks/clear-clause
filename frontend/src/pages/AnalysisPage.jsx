@@ -386,6 +386,14 @@ export default function AnalysisPage() {
         </div>
         <div className="header-actions">
           <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => navigate('/upload')}
+          >
+            <Upload size={14} style={{ marginRight: 6 }} />
+            Analyze Another Document
+          </button>
+          <button
             type="button"
             className="header-info-btn"
             onClick={() => setShowOnboarding(true)}

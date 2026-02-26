@@ -221,23 +221,13 @@ class GeminiAnalysisService:
         )
 
 
-# Global service instance
-_analysis_service: GeminiAnalysisService = None
-
-
-def get_analysis_service() -> GeminiAnalysisService:
-    """Get or create the analysis service instance."""
-    global _analysis_service
-    if _analysis_service is None:
-        _analysis_service = GeminiAnalysisService()
-    return _analysis_service
-
-
 async def analyze_document_with_gemini(
     document_text: str,
     document_name: str = "document.pdf",
     session_id: str = None,
 ) -> AnalysisResult:
     """Convenience function for document analysis."""
-    service = get_analysis_service()
+    # Create a fresh, lightweight service instance per request.
+    # The underlying Gemini client is internally connection-pooled by the SDK.
+    service = GeminiAnalysisService()
     return await service.analyze(document_text, document_name, session_id)

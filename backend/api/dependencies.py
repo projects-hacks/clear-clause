@@ -5,7 +5,8 @@ Provides reusable dependencies for API routes.
 """
 from functools import lru_cache
 from typing import AsyncGenerator
-from fastapi import Depends, HTTPException, status, Query
+
+from fastapi import Depends, HTTPException, status, Query, Header, Request
 from fastapi.responses import StreamingResponse
 import structlog
 
@@ -19,6 +20,8 @@ from services.session_manager import (
 from core.exceptions import SessionNotFound, FileValidationError
 
 logger = structlog.get_logger()
+
+_per_ip_counters: dict[str, int] = {}
 
 
 async def get_session_manager_dep() -> SessionManager:
@@ -152,3 +155,66 @@ def validate_file_upload(
 def get_settings_dep() -> Settings:
     """Dependency to get settings instance."""
     return get_settings()
+
+
+async def require_admin_auth(
+    settings: Settings = Depends(get_settings_dep),
+    x_api_key: str | None = Header(default=None, convert_underscores=False),
+) -> None:
+    """
+    Optional admin authentication for sensitive endpoints.
+
+    When settings.admin_api_key is set, callers must provide X-API-Key
+    matching that value. When unset, authentication is skipped.
+    """
+    if not settings.admin_api_key:
+        return
+
+    if not x_api_key or x_api_key != settings.admin_api_key:
+        logger.warning("Admin auth failed or missing X-API-Key header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key.",
+        )
+
+
+async def enforce_per_ip_analysis_limit(
+    request: Request,
+    settings: Settings = Depends(get_settings_dep),
+) -> None:
+    """
+    Best-effort per-IP limit on concurrent /analyze requests.
+
+    This complements the global concurrent analysis limit by ensuring
+    a single IP cannot monopolize all available analysis slots.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    max_per_ip = settings.max_concurrent_analyses_per_ip
+
+    current = _per_ip_counters.get(client_ip, 0)
+    if current >= max_per_ip:
+        logger.warning(
+            "Per-IP concurrent analysis limit reached",
+            ip=client_ip,
+            current=current,
+            max_per_ip=max_per_ip,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many analyses in progress from this IP. Please wait for an existing analysis to finish.",
+        )
+
+    _per_ip_counters[client_ip] = current + 1
+
+    async def _decrement_counter() -> None:
+        # This helper relies on FastAPI calling dependencies at request scope.
+        # It is invoked from the route handler using finally-block semantics.
+        remaining = _per_ip_counters.get(client_ip, 0)
+        if remaining <= 1:
+            _per_ip_counters.pop(client_ip, None)
+        else:
+            _per_ip_counters[client_ip] = remaining - 1
+
+    # Attach the cleanup helper so routes can call it in a finally block.
+    # We stash it on the request state to avoid changing route signatures.
+    request.state.decrement_ip_counter = _decrement_counter

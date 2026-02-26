@@ -214,7 +214,25 @@ export async function askQuestion(sessionId, question) {
   });
 
   if (!response.ok) {
-    throw new Error('Chat request failed');
+    if (response.status === 429) {
+      const error = new Error('You are asking questions too quickly. Please wait a moment before trying again.');
+      error.code = 'rate_limited';
+      throw error;
+    }
+
+    let message = 'Chat request failed';
+    try {
+      const body = await response.json();
+      if (body?.detail) {
+        message = body.detail;
+      }
+    } catch {
+      // ignore parse errors, fall back to default
+    }
+
+    const error = new Error(message);
+    error.code = 'api_error';
+    throw error;
   }
 
   return response.json();
@@ -239,6 +257,12 @@ export async function generateSpeech(sessionId, text) {
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      const rateError = new Error('Too many voice playback requests. Please slow down and try again.');
+      rateError.code = 'rate_limited';
+      throw rateError;
+    }
+
     let message = 'Speech generation failed';
     try {
       const body = await response.json();
@@ -279,7 +303,7 @@ export async function transcribeAudio(sessionId, audioBlob) {
   if (!response.ok) {
     let raw = '';
     let message = 'Transcription failed';
-    try {
+      try {
       raw = await response.text();
       try {
         const body = JSON.parse(raw);
@@ -299,6 +323,9 @@ export async function transcribeAudio(sessionId, audioBlob) {
     }
 
     const error = new Error(message);
+    if (response.status === 429) {
+      error.code = 'rate_limited';
+    }
     if (message.includes('expired')) {
       error.code = 'session_not_found';
     }
