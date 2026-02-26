@@ -22,6 +22,7 @@ class SessionStatus(str, Enum):
     """Analysis session status."""
     UPLOADING = "uploading"
     EXTRACTING = "extracting"
+    REDACTING = "redacting"
     ANALYZING = "analyzing"
     COMPLETE = "complete"
     ERROR = "error"
@@ -54,6 +55,8 @@ class AnalysisSession:
     
     # Temporary file path (for PDF storage during analysis)
     temp_file_path: Optional[str] = None
+    # Human-readable thinking log for frontend UX
+    message_history: list[str] = field(default_factory=list)
     
     def is_expired(self) -> bool:
         """Check if session has expired."""
@@ -74,6 +77,7 @@ class AnalysisSession:
             "error": self.error,
             "created_at": self.created_at.isoformat(),
             "result": self.result,
+            "message_history": self.message_history,
         }
 
 
@@ -213,6 +217,9 @@ class SessionManager:
                 session.progress = progress
             if message is not None:
                 session.message = message
+                # Append unique messages to history for "thinking" log
+                if not session.message_history or session.message_history[-1] != message:
+                    session.message_history.append(message)
             if error is not None:
                 session.error = error
             if result is not None:
