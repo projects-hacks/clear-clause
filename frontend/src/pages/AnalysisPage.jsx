@@ -21,7 +21,7 @@ import AIAssistantPanel from '../components/chat/AIAssistantPanel';
 import AnalysisOnboarding from '../components/common/AnalysisOnboarding';
 
 // Icons
-import { ArrowLeft, LayoutDashboard, MessageSquare, Upload, FileSearch, Brain, CheckCircle2, Zap, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, MessageSquare, Upload, FileSearch, Brain, CheckCircle2, Zap, AlertTriangle, ShieldCheck, Info } from 'lucide-react';
 import ThemeToggle from '../components/common/ThemeToggle';
 
 /**
@@ -37,6 +37,7 @@ export default function AnalysisPage() {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'chat'
   const [elapsedTime, setElapsedTime] = useState(0);
   const [selectedClauseId, setSelectedClauseId] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Resizable sidebar state
   const [sidebarWidth, setSidebarWidth] = useState(400);
@@ -124,6 +125,14 @@ export default function AnalysisPage() {
       setActiveSession(sessionId);
     }
   }, [sessionId, setActiveSession]);
+
+  // Show onboarding automatically the first time unless user has dismissed it
+  useEffect(() => {
+    const seen = localStorage.getItem('clearclause-analysis-onboarding-seen');
+    if (!seen) {
+      setShowOnboarding(true);
+    }
+  }, []);
 
   // Derive status as a primitive to avoid infinite re-render loops
   const sessionStatus = session?.status;
@@ -376,6 +385,15 @@ export default function AnalysisPage() {
           )}
         </div>
         <div className="header-actions">
+          <button
+            type="button"
+            className="header-info-btn"
+            onClick={() => setShowOnboarding(true)}
+            title="What you can do here"
+            aria-label="Show tips for using this analysis view"
+          >
+            <Info size={16} />
+          </button>
           <ThemeToggle />
           <button
             className={`btn ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'}`}
@@ -443,7 +461,13 @@ export default function AnalysisPage() {
 
         {/* Right: Dashboard or Chat */}
         <div className="side-panel" style={{ width: sidebarWidth }}>
-          <AnalysisOnboarding />
+          <AnalysisOnboarding
+            visible={showOnboarding}
+            onDismiss={() => {
+              setShowOnboarding(false);
+              localStorage.setItem('clearclause-analysis-onboarding-seen', 'true');
+            }}
+          />
           {activeTab === 'dashboard' && session.result && (
             <Dashboard
               result={session.result}

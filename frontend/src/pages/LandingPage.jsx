@@ -44,14 +44,14 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="hero" id="main-content">
         <div className="hero-content">
-          <div className="hero-badge">AI-Powered Contract Analysis</div>
+          <div className="hero-badge">AI-Powered Contract Copilot</div>
           <h1 className="hero-title">
             Every clause,<br />
             <span className="gradient-text">crystal clear.</span>
           </h1>
           <p className="hero-subtitle">
-            Upload contracts, leases, insurance policies, or terms of service.
-            Instantly understand what it really says, what's risky, and what to do about it.
+            Upload leases, NDAs, insurance policies, or app terms of service.
+            ClearClause reads every clause, flags what’s risky, and explains it in plain language.
           </p>
           <p className="hero-trust"><ShieldCheck size={14} /> Your documents are never stored permanently</p>
           <div className="hero-cta">
@@ -102,24 +102,24 @@ export default function LandingPage() {
             <div className="step-icon-wrapper purple">
               <Sparkles size={32} />
             </div>
-            <h3>AI Extraction</h3>
-            <p>Our context-aware AI extracts every clause, classifies risks, and compares terms to industry standards instantly.</p>
+            <h3>Scan & Protect PII</h3>
+            <p>We extract text with Apryse, then automatically redact emails, phone numbers, and other personal details before AI ever sees your document.</p>
           </div>
           <div className="step-card">
             <div className="step-number">03</div>
             <div className="step-icon-wrapper green">
               <ShieldCheck size={32} />
             </div>
-            <h3>Take Action</h3>
-            <p>Get plain-English explanations and actionable negotiation suggestions for every concerning or one-sided clause.</p>
+            <h3>Review & Take Action</h3>
+            <p>Review a clause-by-clause dashboard, fairness compare, PDF highlights, and an AI chat that answers questions about your document.</p>
           </div>
         </div>
       </section>
 
       {/* Supported Documents */}
       <section id="use-cases" className="supported-docs">
-        <h2>Supported Document Types</h2>
-        <p className="section-desc">Trained on thousands of legal documents across various industries.</p>
+        <h2>Where ClearClause helps most</h2>
+        <p className="section-desc">Optimized for the everyday agreements people actually sign.</p>
         <div className="docs-grid">
           <div className="doc-item">
             <Home size={18} className="doc-icon text-blue" />

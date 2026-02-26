@@ -5,10 +5,10 @@
  * Supports multiple concurrent document uploads.
  */
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDocumentAnalysis } from '../hooks/useAnalysis';
 import { useAnalysis } from '../context/AnalysisContext';
-import { Zap, FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Handshake, Search, Loader2, ArrowLeft, Brain, Volume2, Scale, ShieldCheck } from 'lucide-react';
+import { Zap, FileUp, CheckCircle2, AlertTriangle, FileText, Smartphone, Handshake, Search, Loader2, ArrowLeft, Brain, Volume2, Scale, ShieldCheck, Stethoscope } from 'lucide-react';
 import ThemeToggle from '../components/common/ThemeToggle';
 
 /**
@@ -25,6 +25,8 @@ export default function UploadPage() {
   const [validationError, setValidationError] = useState(null);
   const [sampleError, setSampleError] = useState(null);
   const [queueFilter, setQueueFilter] = useState('all'); // all | in_progress | complete | error
+  const [activePanel, setActivePanel] = useState('upload'); // 'upload' | 'analyses'
+  const location = useLocation();
 
   /**
    * Handle file selection
@@ -116,7 +118,8 @@ export default function UploadPage() {
   const handleSampleDocument = async (docName) => {
     const fileMap = {
       'Airbnb ToS': 'airbnb_tos.pdf',
-      'NDA Template': 'nda_template.pdf'
+      'NDA Template': 'nda_template.pdf',
+      'Insurance Policy': 'insurance_sample.pdf',
     };
 
     const fileName = fileMap[docName];
@@ -173,6 +176,15 @@ export default function UploadPage() {
     if (queueFilter === 'error') return s.status === 'error';
     return true;
   });
+
+  // Allow deep-linking to the analyses panel via /upload?view=analyses
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const view = params.get('view');
+    if (view === 'analyses') {
+      setActivePanel('analyses');
+    }
+  }, [location.search]);
 
   // Warn before closing tab if analyses are in progress
   useEffect(() => {
@@ -239,6 +251,30 @@ export default function UploadPage() {
 
       {/* Main Content */}
       <main className="upload-content" id="main-content">
+        {/* Local tabs to switch between Upload and Analyses */}
+        <div className="upload-tabs" role="tablist" aria-label="Upload or view analyses">
+          <button
+            type="button"
+            className={`upload-tab ${activePanel === 'upload' ? 'active' : ''}`}
+            onClick={() => setActivePanel('upload')}
+            role="tab"
+            aria-selected={activePanel === 'upload'}
+          >
+            Upload
+          </button>
+          <button
+            type="button"
+            className={`upload-tab ${activePanel === 'analyses' ? 'active' : ''}`}
+            onClick={() => setActivePanel('analyses')}
+            role="tab"
+            aria-selected={activePanel === 'analyses'}
+          >
+            Analyses
+          </button>
+        </div>
+
+        {activePanel === 'upload' && (
+          <>
         {/* Drop Zone */}
         <div
           className={`drop-zone ${dragOver ? 'drag-over' : ''} ${selectedFile ? 'has-file' : ''}`}
@@ -369,6 +405,21 @@ export default function UploadPage() {
               </div>
               <div className="sample-action"><Search size={14} /> Analyze NDA</div>
             </div>
+
+            <div
+              className="sample-doc-card"
+              onClick={() => handleSampleDocument('Insurance Policy')}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('Insurance Policy'); }}
+            >
+              <div className="sample-icon blue"><Stethoscope size={24} /></div>
+              <div className="sample-info">
+                <h4>Health Insurance Policy</h4>
+                <p>See how ClearClause surfaces exclusions, deductibles, and hidden coverage gaps.</p>
+              </div>
+              <div className="sample-action"><Search size={14} /> Analyze Policy</div>
+            </div>
           </div>
           {sampleError && (
             <div className="error-message" role="alert" style={{ marginTop: 'var(--space-4)' }}>
@@ -377,9 +428,11 @@ export default function UploadPage() {
             </div>
           )}
         </div>
+          </>
+        )}
 
-        {/* Processing Queue */}
-        {sessions.length > 0 && (
+        {/* Processing Queue / Analyses panel */}
+        {activePanel === 'analyses' && sessions.length > 0 && (
           <div className="processing-queue" aria-live="polite" aria-atomic="false">
             <div className="queue-header">
               <div className="queue-title">
@@ -463,24 +516,32 @@ export default function UploadPage() {
                           <AlertTriangle size={14} /> Failed
                         </span>
                       ) : (
-                        <div className="thinking-log">
-                          {session.message_history?.map((msg, idx) => {
-                            const isLast = idx === session.message_history.length - 1;
-                            const isComplete = session.status === 'complete';
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+                          <div className="thinking-log">
+                            {session.message_history?.map((msg, idx) => {
+                              const isLast = idx === session.message_history.length - 1;
+                              const isComplete = session.status === 'complete';
 
-                            return (
-                              <div key={idx} className={`thinking-step ${isLast && !isComplete ? 'active' : 'done'}`}>
-                                <div className="step-indicator">
-                                  {isLast && !isComplete ? (
-                                    <Loader2 size={12} className="spinner" />
-                                  ) : (
-                                    <CheckCircle2 size={12} />
-                                  )}
+                              return (
+                                <div key={idx} className={`thinking-step ${isLast && !isComplete ? 'active' : 'done'}`}>
+                                  <div className="step-indicator">
+                                    {isLast && !isComplete ? (
+                                      <Loader2 size={12} className="spinner" />
+                                    ) : (
+                                      <CheckCircle2 size={12} />
+                                    )}
+                                  </div>
+                                  <span>{msg}</span>
                                 </div>
-                                <span>{msg}</span>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
+                          <button
+                            className="btn btn-secondary btn-small"
+                            onClick={() => navigate(`/analysis/${session.session_id}`)}
+                          >
+                            <Search size={14} /> View progress
+                          </button>
                         </div>
                       )}
                     </div>
@@ -488,6 +549,21 @@ export default function UploadPage() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {activePanel === 'analyses' && sessions.length === 0 && (
+          <div className="processing-queue empty-state">
+            <h3>No analyses yet</h3>
+            <p className="queue-subtitle">
+              Upload a contract above to see it appear here with live progress and results.
+            </p>
+            <button
+              className="btn btn-primary btn-small"
+              onClick={() => setActivePanel('upload')}
+            >
+              <FileUp size={14} /> Start a new analysis
+            </button>
           </div>
         )}
       </main>

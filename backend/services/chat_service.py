@@ -2,6 +2,13 @@
 Chat Service - Document-aware Q&A with Gemini 3 Flash
 
 Provides fast, conversational responses about analyzed documents.
+The heavy document analysis (clause classification, summary, PII redaction)
+is performed once up-front in the analysis pipeline. Here we:
+
+- Take the stored `AnalysisResult` for a session
+- Select the most relevant clauses/sections for the current question
+- Build a focused prompt for Gemini Flash using overall summary + top
+  concerns + a subset of clauses likely relevant to the question.
 """
 import structlog
 
@@ -13,6 +20,66 @@ from prompts.analysis_prompt import CHAT_SYSTEM_PROMPT, CHAT_USER_PROMPT
 logger = structlog.get_logger()
 
 settings = get_settings()
+
+
+def _select_relevant_clauses(
+    question: str,
+    clauses: list[dict],
+    max_clauses: int = 15,
+) -> list[dict]:
+    """
+    Lightweight retrieval over clauses for the current question.
+
+    This avoids re-running analysis and keeps the LLM prompt focused while
+    still being fully derived from the already-computed AnalysisResult.
+    """
+    if not clauses:
+        return []
+
+    q = (question or "").lower()
+    if not q.strip():
+        return clauses[:max_clauses]
+
+    # Very small stopword list just to avoid scoring on glue words.
+    stopwords = {
+        "the", "a", "an", "and", "or", "of", "to", "in", "on",
+        "for", "with", "about", "my", "our", "your", "this", "that",
+    }
+    import re
+
+    tokens = [t for t in re.findall(r"\\w+", q) if t not in stopwords]
+    if not tokens:
+        return clauses[:max_clauses]
+
+    def score_clause(clause: dict) -> float:
+        text = " ".join([
+            str(clause.get("plain_language", "")),
+            str(clause.get("text", "")),
+            str(clause.get("category", "")),
+        ]).lower()
+        if not text:
+            return 0.0
+
+        matches = sum(1 for t in tokens if t in text)
+
+        # Severity boost so critical/warning issues bubble up.
+        severity = str(clause.get("severity", "")).lower()
+        if severity == "critical":
+            matches *= 3
+        elif severity == "warning":
+            matches *= 2
+
+        return float(matches)
+
+    scored = [(score_clause(c), c) for c in clauses]
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # If everything scored 0, just fall back to the first N clauses
+    # (typically already ordered by appearance in the document).
+    if scored and scored[0][0] <= 0:
+        return clauses[:max_clauses]
+
+    return [c for s, c in scored[:max_clauses] if s > 0]
 
 
 async def chat_with_document(
@@ -71,9 +138,11 @@ async def _call_gemini_chat(
         client = genai.Client(api_key=settings.gemini_api_key)
         
         # Prepare clauses summary for context
-        clauses_summary = []
-        clauses = document_context.get('clauses', [])
-        for clause in clauses[:50]:  # Expand context limit
+        clauses_summary: list[str] = []
+        all_clauses = document_context.get('clauses', [])
+        # Focus on clauses that are likely relevant to this specific question
+        clauses = _select_relevant_clauses(question, all_clauses, max_clauses=15)
+        for clause in clauses:
             clause_id = clause.get('clause_id', 'unknown')
             text = clause.get('text', '')  # Full text
             plain = clause.get('plain_language', '')

@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/clearclause-backend
+  IMAGE_NAME: rajeevdev17/clearclause-backend
 
 jobs:
   build-and-deploy:

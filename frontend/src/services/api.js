@@ -19,23 +19,26 @@ function parseSSEData(text) {
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // Skip empty lines and comments
-    if (!trimmed || trimmed.startsWith(':')) continue;
+    // Comment lines start with ":" in SSE
+    if (trimmed.startsWith(':')) continue;
+
+    // Empty line marks end of event
+    if (trimmed === '') {
+      if (currentData) {
+        try {
+          events.push(JSON.parse(currentData));
+        } catch (e) {
+          console.warn('Failed to parse SSE event:', e);
+        }
+        currentData = '';
+      }
+      continue;
+    }
 
     // Parse data line
     if (trimmed.startsWith('data:')) {
       const data = trimmed.slice(5).trim();
       currentData += data;
-    }
-
-    // Empty line marks end of event
-    if (trimmed === '' && currentData) {
-      try {
-        events.push(JSON.parse(currentData));
-        currentData = '';
-      } catch (e) {
-        console.warn('Failed to parse SSE event:', e);
-      }
     }
   }
 

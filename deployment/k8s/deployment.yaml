@@ -7,7 +7,7 @@ metadata:
     app: clearclause
     component: backend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: clearclause
@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: clearclause-backend:latest
+        image: rajeevdev17/clearclause-backend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000

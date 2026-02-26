@@ -45,48 +45,56 @@ def match_clause_positions(
     for clause in analysis_result.clauses:
         clause_text = clause.text.lower().strip()
 
-        # Try to find matching words
+        # Try to find matching words with a fuzzy, windowed search so that
+        # small differences between LLM text and OCR text don't completely
+        # break highlighting.
         best_match = None
-        best_match_score = 0
+        best_match_score = 0.0
 
         for page_num, page_words in words_by_page.items():
-            # Simple substring matching - look for clause text in page words
-            page_text = " ".join(w["text"] for w in page_words)
+            if not page_words:
+                continue
 
-            if clause_text in page_text:
-                # Find the words that match
-                clause_words = clause_text.split()
-                if len(clause_words) < 3:
-                    continue  # Too short for reliable matching
+            clause_words = [w for w in clause_text.split() if w]
+            if len(clause_words) < 3:
+                # Extremely short clauses are too ambiguous – skip precise
+                # matching and let them fall back to the default location.
+                continue
 
-                # Search for sequence of matching words
-                for i in range(len(page_words) - len(clause_words) + 1):
-                    match_count = 0
-                    for j, clause_word in enumerate(clause_words):
-                        if clause_word in page_words[i + j]["text"]:
-                            match_count += 1
+            window_size = min(len(page_words), max(len(clause_words) + 2, len(clause_words)))
 
-                    match_score = match_count / len(clause_words)
+            # Slide a window over the page's words and compute an overlap
+            # score between the clause words and the window words.
+            for i in range(0, len(page_words) - 1):
+                window_words = page_words[i : min(i + window_size, len(page_words))]
+                window_texts = " ".join(w["text"] for w in window_words)
 
-                    if match_score > best_match_score and match_score > 0.7:
-                        best_match_score = match_score
-                        # Compute union bounding box
-                        matched_words = page_words[i:i + len(clause_words)]
-                        if matched_words:
-                            x1 = min(w["bbox"]["x1"] for w in matched_words)
-                            y1 = min(w["bbox"]["y1"] for w in matched_words)
-                            x2 = max(w["bbox"]["x2"] for w in matched_words)
-                            y2 = max(w["bbox"]["y2"] for w in matched_words)
+                match_count = 0
+                for cw in clause_words:
+                    if cw in window_texts:
+                        match_count += 1
 
-                            best_match = {
-                                "page_number": page_num,
-                                "position": {
-                                    "x1": x1,
-                                    "y1": y1,
-                                    "x2": x2,
-                                    "y2": y2
-                                }
-                            }
+                match_score = match_count / len(clause_words)
+
+                # Require at least 50% of the clause words to appear in the
+                # window, and keep the best scoring window across all pages.
+                if match_score > best_match_score and match_score >= 0.5:
+                    best_match_score = match_score
+                    if window_words:
+                        x1 = min(w["bbox"]["x1"] for w in window_words)
+                        y1 = min(w["bbox"]["y1"] for w in window_words)
+                        x2 = max(w["bbox"]["x2"] for w in window_words)
+                        y2 = max(w["bbox"]["y2"] for w in window_words)
+
+                        best_match = {
+                            "page_number": page_num,
+                            "position": {
+                                "x1": x1,
+                                "y1": y1,
+                                "x2": x2,
+                                "y2": y2,
+                            },
+                        }
 
         # Update clause with position if found
         if best_match:

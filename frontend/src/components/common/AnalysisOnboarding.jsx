@@ -1,29 +1,28 @@
 /**
  * Analysis Onboarding
  *
- * Optional first-visit tooltip showing "What you can do" on the Analysis page.
+ * Small \"What you can do\" helper card for the Analysis page.
+ * Visibility is controlled by the parent via props so we can
+ * both auto-show it on first visit and re-open it from an info icon.
  */
 import React, { useState, useEffect } from 'react';
 import { X, LayoutDashboard, MessageSquare, FileText, MapPin } from 'lucide-react';
 
-const STORAGE_KEY = 'clearclause-analysis-onboarding-seen';
-
-export default function AnalysisOnboarding() {
-  const [visible, setVisible] = useState(false);
+export default function AnalysisOnboarding({ visible, onDismiss }) {
+  const [internalVisible, setInternalVisible] = useState(!!visible);
 
   useEffect(() => {
-    const seen = localStorage.getItem(STORAGE_KEY);
-    if (!seen) {
-      setVisible(true);
-    }
-  }, []);
+    setInternalVisible(!!visible);
+  }, [visible]);
 
   const dismiss = () => {
-    setVisible(false);
-    localStorage.setItem(STORAGE_KEY, 'true');
+    setInternalVisible(false);
+    if (onDismiss) {
+      onDismiss();
+    }
   };
 
-  if (!visible) return null;
+  if (!internalVisible) return null;
 
   return (
     <div

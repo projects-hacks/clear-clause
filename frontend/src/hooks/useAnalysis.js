@@ -26,9 +26,8 @@ export function useDocumentAnalysis() {
     try {
       const stream = await uploadDocument(file);
 
-      // Read first SSE event to get sessionId
-      const firstEvent = await stream.readProgress();
-      const sessionId = stream.sessionId || firstEvent?.session_id;
+      // Prefer session ID from header; SSE is optional now
+      const sessionId = stream.sessionId;
 
       if (!sessionId) {
         throw new Error('Failed to get session ID from server');
@@ -45,46 +44,28 @@ export function useDocumentAnalysis() {
         result: null,
       });
 
-      // Process the first event's data if it already has progress
-      if (firstEvent) {
-        updateSession(sessionId, {
-          status: firstEvent.stage,
-          progress: firstEvent.progress,
-          message: firstEvent.message,
-          result: firstEvent.data || null,
-        });
-      }
-
-      // Continue reading ALL remaining SSE events in background (non-blocking)
+      // Poll status in the background until analysis completes.
+      // This avoids relying on SSE parsing and keeps the UI in sync.
       (async () => {
         try {
           let done = false;
           while (!done) {
-            const events = await stream.readAllProgress();
-            if (events.length === 0) break; // stream ended
-
-            // Process EVERY event so progress UI updates incrementally
-            for (const progress of events) {
-              if (progress.error) {
-                updateSession(sessionId, { status: 'error', message: progress.error });
-                done = true;
-                break;
-              }
-              updateSession(sessionId, {
-                status: progress.stage,
-                progress: progress.progress,
-                message: progress.message,
-                result: progress.data || null,
-              });
-              if (progress.stage === 'complete' || progress.stage === 'error') {
-                done = true;
-                break;
-              }
+            const status = await getAnalysisStatus(sessionId);
+            updateSession(sessionId, {
+              status: status.status,
+              progress: status.progress,
+              message: status.message,
+              result: status.result || null,
+            });
+            if (status.status === 'complete' || status.status === 'error') {
+              done = true;
+              break;
             }
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
         } catch (err) {
-          console.error('SSE read error:', err);
-          updateSession(sessionId, { status: 'error', message: 'Connection lost. Retrying...' });
+          console.error('Background polling failed:', err);
+          updateSession(sessionId, { status: 'error', message: 'Analysis failed while polling for updates.' });
         }
       })();
 
