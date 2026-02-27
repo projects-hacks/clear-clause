@@ -85,7 +85,7 @@ async def analyze_document(
     session_manager: SessionManager = Depends(get_session_manager_dep),
     settings: Settings = Depends(get_settings_dep),
     _ip_guard: None = Depends(enforce_per_ip_analysis_limit),
-    request: Request = None,
+    request: Request,
 ) -> StreamingResponse:
     """
     Upload a PDF document and start analysis pipeline.
@@ -190,11 +190,10 @@ async def analyze_document(
             status_code=e.status_code,
         )
     finally:
-        # Decrement per-IP analysis counter if the dependency set it.
-        if request is not None:
-            decrement = getattr(request.state, "decrement_ip_counter", None)
-            if decrement is not None:
-                await decrement()
+        # Decrement per-IP analysis counter so the IP is not permanently locked out.
+        decrement = getattr(request.state, "decrement_ip_counter", None)
+        if decrement is not None:
+            await decrement()
 
 
 @router.get("/analyze/{session_id}")

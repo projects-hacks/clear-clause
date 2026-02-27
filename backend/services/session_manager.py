@@ -441,7 +441,7 @@ class SessionManager:
                       AND expires_at > $2
                     """,
                     session_id,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 )
 
                 if row is None:
@@ -650,7 +650,7 @@ class SessionManager:
                     FROM analysis_sessions
                     WHERE expires_at > $1
                     """,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 )
 
             sessions: list[AnalysisSession] = []
