@@ -121,7 +121,8 @@ async def chat_with_document(
             _call_gemini_chat,
             question,
             document_context,
-            max_tokens
+            max_tokens,
+            session_id,
         )
     except Exception as e:
         logger.error("Chat failed", error=str(e))
@@ -135,6 +136,7 @@ async def _call_gemini_chat(
     question: str,
     document_context: dict,
     max_tokens: int,
+    session_id: str | None = None,
 ) -> ChatResponse:
     """Call Gemini for chat response."""
     try:
