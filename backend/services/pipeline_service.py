@@ -122,7 +122,6 @@ def match_clause_positions(
 
 async def run_analysis_pipeline(
     session_id: str,
-    temp_file_path: str,
     session_manager: SessionManager,
 ) -> None:
     """
@@ -138,11 +137,24 @@ async def run_analysis_pipeline(
     
     Args:
         session_id: Unique session identifier
-        temp_file_path: Path to uploaded PDF file
         session_manager: Session manager for progress updates
     """
+    temp_path = None
     try:
         logger.info("Pipeline started", session_id=session_id)
+        
+        session = await session_manager.get_session(session_id)
+        if not session or not session.document_bytes:
+            raise AnalysisError("Failed to start pipeline: document bytes missing", session_id)
+            
+        import tempfile
+        import os
+        
+        # Write bytes to temp file since Apryse/PyPDF2 require file paths
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, f"{session_id}_pipeline.pdf")
+        with open(temp_path, "wb") as f:
+            f.write(session.document_bytes)
         
         # ========== Stage 1: OCR Text Extraction (roughly first 20% of work) ==========
         await session_manager.update_session(
@@ -155,7 +167,7 @@ async def run_analysis_pipeline(
         logger.info("Stage 1: OCR extraction started", session_id=session_id)
         
         try:
-            ocr_result = await extract_text_with_apryse(temp_file_path)
+            ocr_result = await extract_text_with_apryse(temp_path)
             
             await session_manager.update_session(
                 session_id=session_id,
@@ -343,3 +355,10 @@ async def run_analysis_pipeline(
             error=f"Unexpected error: {str(e)}",
             message="An unexpected error occurred"
         )
+    finally:
+        if temp_path:
+            try:
+                import os
+                os.remove(temp_path)
+            except OSError:
+                pass

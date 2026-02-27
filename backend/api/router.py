@@ -115,8 +115,11 @@ async def analyze_document(
         # Check global concurrent analysis limit
         await check_concurrent_limit(session_manager=session_manager, settings=settings)
         
-        # Create new session
-        session = await session_manager.create_session(document_name=safe_filename)
+        # Create new session with bytes directly
+        session = await session_manager.create_session(
+            document_name=safe_filename, 
+            document_bytes=file_bytes
+        )
         
         logger.info(
             "Document upload started",
@@ -125,14 +128,6 @@ async def analyze_document(
             size_bytes=len(file_bytes)
         )
         
-        # Save temp file for pipeline processing
-        temp_dir = tempfile.gettempdir()
-        temp_path = os.path.join(temp_dir, f"{session.session_id}.pdf")
-        
-        with open(temp_path, "wb") as f:
-            f.write(file_bytes)
-        
-        session.temp_file_path = temp_path
         await session_manager.update_session(
             session_id=session.session_id,
             status=SessionStatusEnum.UPLOADING,
@@ -146,7 +141,6 @@ async def analyze_document(
         task = asyncio.create_task(
             run_analysis_pipeline(
                 session_id=session.session_id,
-                temp_file_path=temp_path,
                 session_manager=session_manager,
             )
         )
@@ -230,16 +224,18 @@ async def get_document(
 
     Returns the original PDF file for display in Apryse WebViewer.
     """
-    if not session.temp_file_path or not os.path.exists(session.temp_file_path):
+    if not session.document_bytes:
         raise HTTPException(
             status_code=404,
             detail="Document file not found"
         )
+    
+    from fastapi.responses import Response
 
-    return FileResponse(
-        session.temp_file_path,
+    return Response(
+        content=session.document_bytes,
         media_type="application/pdf",
-        filename=session.document_name,
+        headers={"Content-Disposition": f'inline; filename="{session.document_name}"'}
     )
 
 

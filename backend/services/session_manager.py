@@ -72,7 +72,8 @@ async def _ensure_session_tables() -> None:
                 expires_at      TIMESTAMPTZ NOT NULL,
                 result          JSONB,
                 message_history JSONB,
-                temp_file_path  TEXT
+                temp_file_path  TEXT,
+                document_bytes  BYTEA
             );
             """
         )
@@ -80,6 +81,13 @@ async def _ensure_session_tables() -> None:
             """
             CREATE INDEX IF NOT EXISTS idx_analysis_sessions_expires_at
             ON analysis_sessions (expires_at);
+            """
+        )
+        # Migration: add document_bytes column to existing tables
+        await conn.execute(
+            """
+            ALTER TABLE analysis_sessions
+            ADD COLUMN IF NOT EXISTS document_bytes BYTEA;
             """
         )
 
@@ -122,6 +130,9 @@ class AnalysisSession:
     # Analysis result (populated on completion)
     result: Optional[Dict[str, Any]] = None
     
+    # Store document bytes in memory/DB to survive pod restarts
+    document_bytes: Optional[bytes] = None
+
     # Temporary file path (for PDF storage during analysis)
     temp_file_path: Optional[str] = None
     # Human-readable thinking log for frontend UX
@@ -264,12 +275,13 @@ class SessionManager:
 
             return len(expired_ids)
     
-    async def create_session(self, document_name: str) -> AnalysisSession:
+    async def create_session(self, document_name: str, document_bytes: bytes | None = None) -> AnalysisSession:
         """
         Create a new analysis session.
         
         Args:
             document_name: Original filename of the uploaded document
+            document_bytes: The actual PDF bytes to store
             
         Returns:
             New AnalysisSession instance
@@ -283,6 +295,7 @@ class SessionManager:
             created_at=now,
             updated_at=now,
             expires_at=expires_at,
+            document_bytes=document_bytes,
         )
 
         if self._use_db:
@@ -307,9 +320,10 @@ class SessionManager:
                             expires_at,
                             result,
                             message_history,
-                            temp_file_path
+                            temp_file_path,
+                            document_bytes
                         )
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                         """,
                         session.session_id,
                         session.document_name,
@@ -323,6 +337,7 @@ class SessionManager:
                         session.result,
                         session.message_history,
                         session.temp_file_path,
+                        session.document_bytes,
                     )
         else:
             async with self._lock:
@@ -358,7 +373,8 @@ class SessionManager:
                         expires_at,
                         result,
                         message_history,
-                        temp_file_path
+                        temp_file_path,
+                        document_bytes
                     FROM analysis_sessions
                     WHERE session_id = $1
                       AND expires_at > $2
@@ -383,6 +399,7 @@ class SessionManager:
                 result=row["result"],
                 message_history=row["message_history"] or [],
                 temp_file_path=row["temp_file_path"],
+                document_bytes=row["document_bytes"],
             )
             session.touch()
             return session
