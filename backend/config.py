@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # When unset, those endpoints remain unauthenticated (hackathon/demo mode).
     admin_api_key: str | None = None
 
+    # PII detection
+    # When True and Presidio is installed, use Microsoft Presidio for PII detection.
+    # When False or Presidio is unavailable, fall back to regex-based detection.
+    use_presidio_pii: bool = True
+
     # Vector store / embeddings (optional, for RAG-style chat)
     # Example: postgresql+psycopg://user:pass@host:5432/dbname
     vector_db_url: str | None = None
