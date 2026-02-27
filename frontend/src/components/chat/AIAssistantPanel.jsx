@@ -13,15 +13,55 @@ export default function AIAssistantPanel({ sessionId }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isVoiceOn, setIsVoiceOn] = useState(true);
+    const [isVoiceOn, setIsVoiceOn] = useState(false);
     const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
+    const [initializedFromStorage, setInitializedFromStorage] = useState(false);
 
     const messagesEndRef = useRef(null);
     const currentAudioSourceRef = useRef(null);
+    const chatAbortRef = useRef(null);
+
+    const storageKey = sessionId ? `clearclause_chat_${sessionId}` : null;
+
+    // Restore chat history for this session from localStorage
+    useEffect(() => {
+        if (!sessionId || initializedFromStorage) return;
+
+        try {
+            const raw = localStorage.getItem(`clearclause_chat_${sessionId}`);
+            if (raw) {
+                const stored = JSON.parse(raw);
+                const restored = stored.map((m) => ({
+                    ...m,
+                    timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+                }));
+                setMessages(restored);
+            }
+        } catch (e) {
+            console.error('Failed to restore chat history:', e);
+        } finally {
+            setInitializedFromStorage(true);
+        }
+    }, [sessionId, initializedFromStorage]);
+
+    // Persist chat history whenever it changes
+    useEffect(() => {
+        if (!storageKey) return;
+        try {
+            const serializable = messages.map((m) => ({
+                ...m,
+                timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+            }));
+            localStorage.setItem(storageKey, JSON.stringify(serializable));
+        } catch (e) {
+            console.error('Failed to persist chat history:', e);
+        }
+    }, [messages, storageKey]);
 
     // Initialize first message
     useEffect(() => {
-        if (messages.length === 0 && result) {
+        if (!result || !initializedFromStorage) return;
+        if (messages.length === 0) {
             const welcomeMsg = {
                 id: 'welcome',
                 role: 'assistant',
@@ -30,22 +70,27 @@ export default function AIAssistantPanel({ sessionId }) {
             };
             setMessages([welcomeMsg]);
         }
-    }, [result]);
+    }, [result, initializedFromStorage, messages.length]);
 
     // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Play audio for new assistant messages
+    // Play audio for new assistant messages (but never auto-play the welcome)
     useEffect(() => {
         const lastMessage = messages[messages.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant' && isVoiceOn && !lastMessage.isError) {
-            if (lastMessage.id !== currentlyPlaying) {
-                playTTS(lastMessage.content, lastMessage.id);
-            }
+        if (
+            lastMessage &&
+            lastMessage.role === 'assistant' &&
+            lastMessage.id !== 'welcome' &&
+            isVoiceOn &&
+            !lastMessage.isError &&
+            lastMessage.id !== currentlyPlaying
+        ) {
+            playTTS(lastMessage.content, lastMessage.id);
         }
-    }, [messages, isVoiceOn]);
+    }, [messages, isVoiceOn, currentlyPlaying]);
 
     const playTTS = async (text, msgId) => {
         try {
@@ -117,6 +162,10 @@ export default function AIAssistantPanel({ sessionId }) {
     };
 
     const submitUserMessage = async (textContent) => {
+        if (isSubmitting) {
+            return;
+        }
+
         const userMessage = {
             id: Date.now().toString(),
             role: 'user',
@@ -130,7 +179,15 @@ export default function AIAssistantPanel({ sessionId }) {
 
         try {
             const { askQuestion } = await import('../../services/api');
-            const response = await askQuestion(sessionId, textContent);
+
+            // Cancel any in-flight chat request before starting a new one
+            if (chatAbortRef.current) {
+                chatAbortRef.current.abort();
+            }
+            const controller = new AbortController();
+            chatAbortRef.current = controller;
+
+            const response = await askQuestion(sessionId, textContent, { signal: controller.signal });
 
             const assistantMessage = {
                 id: (Date.now() + 1).toString(),
@@ -142,6 +199,9 @@ export default function AIAssistantPanel({ sessionId }) {
 
             setMessages(prev => [...prev, assistantMessage]);
         } catch (err) {
+            if (err.name === 'AbortError') {
+                return;
+            }
             const errorContent = err.message?.includes('422')
                 ? "Unable to process your request. The session may have expired. Please upload your document again to start a new analysis."
                 : "I apologize, but I encountered an error. Please try again.";
@@ -163,6 +223,18 @@ export default function AIAssistantPanel({ sessionId }) {
         if (!input.trim() || isSubmitting) return;
         submitUserMessage(input.trim());
     };
+
+    // Cleanup on unmount: stop audio and abort any in-flight chat request
+    useEffect(() => {
+        return () => {
+            if (currentAudioSourceRef.current) {
+                currentAudioSourceRef.current.pause();
+            }
+            if (chatAbortRef.current) {
+                chatAbortRef.current.abort();
+            }
+        };
+    }, []);
 
     return (
         <div className="chat-panel">

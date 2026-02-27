@@ -5,10 +5,12 @@ Thin controllers that delegate to services.
 """
 import asyncio
 import json
+import os
+import tempfile
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 import structlog
 
 from api.schemas import (
@@ -83,6 +85,7 @@ async def analyze_document(
     session_manager: SessionManager = Depends(get_session_manager_dep),
     settings: Settings = Depends(get_settings_dep),
     _ip_guard: None = Depends(enforce_per_ip_analysis_limit),
+    request: Request = None,
 ) -> StreamingResponse:
     """
     Upload a PDF document and start analysis pipeline.
@@ -123,9 +126,6 @@ async def analyze_document(
         )
         
         # Save temp file for pipeline processing
-        import os
-        import tempfile
-        
         temp_dir = tempfile.gettempdir()
         temp_path = os.path.join(temp_dir, f"{session.session_id}.pdf")
         
@@ -189,6 +189,12 @@ async def analyze_document(
             media_type="text/event-stream",
             status_code=e.status_code,
         )
+    finally:
+        # Decrement per-IP analysis counter if the dependency set it.
+        if request is not None:
+            decrement = getattr(request.state, "decrement_ip_counter", None)
+            if decrement is not None:
+                await decrement()
 
 
 @router.get("/analyze/{session_id}")
@@ -225,9 +231,6 @@ async def get_document(
 
     Returns the original PDF file for display in Apryse WebViewer.
     """
-    import os
-    from fastapi.responses import FileResponse
-
     if not session.temp_file_path or not os.path.exists(session.temp_file_path):
         raise HTTPException(
             status_code=404,

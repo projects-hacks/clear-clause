@@ -6,7 +6,7 @@ Prevents single user/session from exhausting API quota.
 """
 import asyncio
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import structlog
 
@@ -33,7 +33,7 @@ class TokenBucket:
         self.tokens_per_minute = tokens_per_minute
         self.max_tokens = max_tokens or tokens_per_minute
         self.tokens = float(self.max_tokens)
-        self.last_update = datetime.utcnow()
+        self.last_update = datetime.now(timezone.utc)
         self._lock = asyncio.Lock()
         
         # Calculate tokens per second for refill
@@ -47,7 +47,7 @@ class TokenBucket:
     
     def _refill(self) -> None:
         """Refill tokens based on elapsed time."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         elapsed = (now - self.last_update).total_seconds()
         
         # Add tokens based on elapsed time
@@ -71,7 +71,7 @@ class TokenBucket:
         Raises:
             RateLimitExceeded: If timeout is 0 and no tokens available
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         while True:
             async with self._lock:
@@ -88,7 +88,7 @@ class TokenBucket:
             
             # Check timeout
             if timeout is not None:
-                elapsed = (datetime.utcnow() - start_time).total_seconds()
+                elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
                 if elapsed >= timeout:
                     if timeout == 0:
                         retry_after = int(wait_time) + 1

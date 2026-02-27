@@ -202,7 +202,7 @@ export async function cancelSession(sessionId) {
  * @param {string} question - User question
  * @returns {Promise<ChatResponse>}
  */
-export async function askQuestion(sessionId, question) {
+export async function askQuestion(sessionId, question, options = {}) {
   const response = await fetch(`${API_BASE_URL}/chat?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: {
@@ -211,6 +211,7 @@ export async function askQuestion(sessionId, question) {
     body: JSON.stringify({
       question,
     }),
+    signal: options.signal,
   });
 
   if (!response.ok) {

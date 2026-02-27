@@ -11,6 +11,7 @@ is performed once up-front in the analysis pipeline. Here we:
   concerns + a subset of clauses likely relevant to the question.
 """
 import structlog
+import re
 
 from config import get_settings
 from api.schemas import ChatResponse, AnalysisResult
@@ -49,7 +50,6 @@ def _select_relevant_clauses(
         "the", "a", "an", "and", "or", "of", "to", "in", "on",
         "for", "with", "about", "my", "our", "your", "this", "that",
     }
-    import re
 
     tokens = [t for t in re.findall(r"\w+", q) if t not in stopwords]
     if not tokens:

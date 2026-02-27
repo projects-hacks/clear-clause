@@ -26,7 +26,9 @@ class PIIMatch(BaseModel):
 # In a true production environment, a NER model (like Presidio or AWS Macie)
 # would be used in addition to complex regex validation.
 PII_PATTERNS = {
-    "SSN": r"\b(?!000)(?!666)[0-8]\d{2}[- ]?(?!00)\d{2}[- ]?(?!0000)\d{4}\b",
+    # Require separators between SSN parts to avoid matching arbitrary 9-digit
+    # sequences (e.g., account numbers) without dashes or spaces.
+    "SSN": r"\b(?!000)(?!666)[0-8]\d{2}[- ](?!00)\d{2}[- ](?!0000)\d{4}\b",
     "Email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
     "Phone": r"\b(?:\+?1[-. ]?)?\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})\b",
     "CreditCard": r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})\b",

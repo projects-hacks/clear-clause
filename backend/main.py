@@ -245,11 +245,13 @@ async def health_check():
     except RuntimeError:
         active_sessions = 0
     
+    from datetime import datetime, timezone
+
     return {
         "status": "ok",
         "version": "1.0.0",
         "active_sessions": active_sessions,
-        "timestamp": asyncio.get_event_loop().time(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
