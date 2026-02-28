@@ -33,59 +33,89 @@ def match_clause_positions(
 
     Modifies analysis_result.clauses in place.
     """
+    import re
+
+    # Common words that appear everywhere in legal text and cause false positives
+    STOPWORDS = {
+        "the", "a", "an", "and", "or", "of", "to", "in", "for", "on", "at",
+        "by", "is", "be", "as", "it", "if", "no", "do", "so", "we", "he",
+        "she", "my", "me", "am", "us", "up", "all", "any", "its", "our",
+        "may", "can", "has", "had", "was", "are", "not", "but", "you",
+        "your", "this", "that", "with", "will", "from", "such", "been",
+        "have", "each", "than", "also", "into", "more", "only", "upon",
+        "then", "them", "they", "their", "these", "those", "does", "did",
+        "shall", "would", "could", "should", "which", "what", "when",
+        "where", "who", "whom", "how", "very", "just", "both", "some",
+        "other", "about", "after", "before", "between", "under", "over",
+    }
+
+    def _normalize(word: str) -> str:
+        """Strip punctuation and lowercase."""
+        return re.sub(r'[^\w]', '', word.lower().strip())
+
     # Build a searchable index of words by page
     words_by_page: Dict[int, List[Dict[str, Any]]] = {}
 
     for page in ocr_result.pages:
         words_by_page[page.page_number] = [
-            {"text": w.text.lower().strip(), "bbox": w.bbox}
+            {"text": _normalize(w.text), "raw": w.text, "bbox": w.bbox}
             for w in page.words
+            if _normalize(w.text)  # skip empty after normalization
         ]
 
     # Process each clause
     for clause in analysis_result.clauses:
         clause_text = clause.text.lower().strip()
 
-        # Try to find matching words with a fuzzy, windowed search so that
-        # small differences between LLM text and OCR text don't completely
-        # break highlighting.
+        # Extract meaningful words from clause (skip stopwords for scoring)
+        all_clause_words = [_normalize(w) for w in clause_text.split() if _normalize(w)]
+        scoring_words = [w for w in all_clause_words if w not in STOPWORDS and len(w) > 2]
+
+        if len(scoring_words) < 2:
+            # Too few meaningful words — use page 1 default
+            clause.page_number = clause.page_number or 1
+            clause.position = {"x1": 72, "y1": 100, "x2": 540, "y2": 150}
+            continue
+
         best_match = None
         best_match_score = 0.0
+        found_excellent = False
 
         for page_num, page_words in words_by_page.items():
-            if not page_words:
+            if not page_words or found_excellent:
                 continue
 
-            clause_words = [w for w in clause_text.split() if w]
-            if len(clause_words) < 3:
-                # Extremely short clauses are too ambiguous – skip precise
-                # matching and let them fall back to the default location.
+            # Build a set of unique words on this page for fast lookup
+            page_word_set = {w["text"] for w in page_words}
+
+            # Quick check: at least 40% of scoring words must exist on this page
+            page_hit_count = sum(1 for sw in scoring_words if sw in page_word_set)
+            if page_hit_count / len(scoring_words) < 0.4:
                 continue
 
-            window_size = min(len(page_words), max(len(clause_words) + 2, len(clause_words)))
+            # Use a window ~2x the clause word count to allow for OCR gaps
+            window_size = min(len(page_words), max(len(all_clause_words) * 2, 20))
 
-            # Slide a window over the page's words and compute an overlap
-            # score between the clause words and the window words.
-            for i in range(0, len(page_words) - 1):
-                window_words = page_words[i : min(i + window_size, len(page_words))]
-                window_texts = " ".join(w["text"] for w in window_words)
+            for i in range(len(page_words) - min(window_size, len(page_words)) + 1):
+                window = page_words[i : i + window_size]
+                window_word_set = {w["text"] for w in window}
 
-                match_count = 0
-                for cw in clause_words:
-                    if cw in window_texts:
-                        match_count += 1
+                # Count scoring words that appear in the window (exact word match)
+                matched_scoring = [sw for sw in scoring_words if sw in window_word_set]
+                match_score = len(matched_scoring) / len(scoring_words)
 
-                match_score = match_count / len(clause_words)
-
-                # Require at least 50% of the clause words to appear in the
-                # window, and keep the best scoring window across all pages.
                 if match_score > best_match_score and match_score >= 0.5:
                     best_match_score = match_score
-                    if window_words:
-                        x1 = min(w["bbox"]["x1"] for w in window_words)
-                        y1 = min(w["bbox"]["y1"] for w in window_words)
-                        x2 = max(w["bbox"]["x2"] for w in window_words)
-                        y2 = max(w["bbox"]["y2"] for w in window_words)
+
+                    # Compute TIGHT bounding box using only matched words
+                    matched_set = set(matched_scoring)
+                    matched_page_words = [w for w in window if w["text"] in matched_set]
+
+                    if matched_page_words:
+                        x1 = min(w["bbox"]["x1"] for w in matched_page_words)
+                        y1 = min(w["bbox"]["y1"] for w in matched_page_words)
+                        x2 = max(w["bbox"]["x2"] for w in matched_page_words)
+                        y2 = max(w["bbox"]["y2"] for w in matched_page_words)
 
                         best_match = {
                             "page_number": page_num,
@@ -97,19 +127,17 @@ def match_clause_positions(
                             },
                         }
 
-                        # Early exit if we have an excellent match to
-                        # avoid scanning the rest of the document on
-                        # very large files.
-                        if best_match_score >= 0.95:
-                            break
+                    if best_match_score >= 0.90:
+                        found_excellent = True
+                        break
 
         # Update clause with position if found
         if best_match:
             clause.page_number = best_match["page_number"]
             clause.position = best_match["position"]
         else:
-            # Fallback: use default position (top of page 1)
-            clause.page_number = 1
+            # Fallback: keep existing page_number or use page 1
+            clause.page_number = clause.page_number or 1
             clause.position = {"x1": 72, "y1": 100, "x2": 540, "y2": 150}
 
         logger.debug(
