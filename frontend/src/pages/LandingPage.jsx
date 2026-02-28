@@ -1,33 +1,67 @@
 /**
  * Landing Page Component
- * 
- * Premium landing page with animated hero, feature cards, and CTA.
+ *
+ * Premium landing page with animated hero, bento feature grid,
+ * pipeline visualization, stats, and CTA banner.
  */
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Zap, UploadCloud, PlayCircle, FileText, Upload, Sparkles,
+  Zap, UploadCloud, FileText, Upload, Sparkles,
   ShieldCheck, Home, Briefcase, Stethoscope, Smartphone,
-  Handshake, PieChart, Brain, MessageSquare, Scale, Mic
+  Handshake, PieChart, Brain, MessageSquare, Scale, Mic,
+  ArrowRight, Eye, Volume2, ChevronRight, Search, Lock, Clock
 } from 'lucide-react';
 import ThemeToggle from '../components/common/ThemeToggle';
 
-/**
- * Landing Page
- */
+/* Animated counter hook */
+function useCounter(target, duration = 2000) {
+  const [count, setCount] = useState(0);
+  const ref = useRef(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const start = performance.now();
+          const step = (now) => {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setCount(Math.round(eased * target));
+            if (progress < 1) requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [target, duration]);
+
+  return [count, ref];
+}
+
 export default function LandingPage() {
   const navigate = useNavigate();
+
+  const [clauseCount, clauseRef] = useCounter(100, 1800);
+  const [categoryCount, categoryRef] = useCounter(5, 1200);
+  const [privacyCount, privacyRef] = useCounter(100, 2000);
 
   return (
     <div className="landing-page">
       {/* Navigation */}
       <nav className="landing-nav" aria-label="Main navigation">
         <div className="nav-brand">
-          <Zap className="logo-icon" size={28} color="var(--accent-primary)" />
+          <Zap className="logo-icon" size={20} color="var(--accent-primary)" />
           <span className="brand-name">ClearClause</span>
         </div>
         <div className="nav-links">
           <a href="#how-it-works">How It Works</a>
+          <a href="#features">Features</a>
           <a href="#use-cases">Use Cases</a>
         </div>
         <div className="nav-actions">
@@ -43,83 +77,188 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="hero" id="main-content">
+        <div className="hero-bg-effects">
+          <div className="hero-glow hero-glow-1" />
+          <div className="hero-glow hero-glow-2" />
+          <div className="hero-grid-overlay" />
+        </div>
+
         <div className="hero-content">
           <div className="hero-badge">AI-Powered Contract Copilot</div>
           <h1 className="hero-title">
-            Every clause,<br />
-            <span className="gradient-text">crystal clear.</span>
+            Know what you're signing.<br />
+            <span className="gradient-text">Before you sign it.</span>
           </h1>
           <p className="hero-subtitle">
-            Upload leases, NDAs, insurance policies, or app terms of service.
-            ClearClause reads every clause, flags what’s risky, and explains it in plain language.
+            Upload a lease, NDA, terms of service or any document : ClearClause flags every risky clause,
+            scores it for fairness, and lets you ask questions in plain language.
           </p>
-          <p className="hero-trust"><ShieldCheck size={14} /> Your documents are never stored permanently</p>
+          <div className="hero-trust-row">
+            <span className="trust-item"><ShieldCheck size={14} /> PII auto-redacted</span>
+            <span className="trust-divider">·</span>
+            <span className="trust-item"><Lock size={14} /> Encrypted in transit</span>
+            <span className="trust-divider">·</span>
+            <span className="trust-item"><Clock size={14} /> Auto-deleted in 30 min</span>
+          </div>
           <div className="hero-cta">
             <button
               className="btn btn-primary btn-large"
               onClick={() => navigate('/upload')}
             >
               <UploadCloud size={20} />
-              Analyze Document
+              Analyze a Document
             </button>
             <button
               className="btn btn-secondary btn-large"
               onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
             >
-              <PlayCircle size={20} />
-              See Platform
+              See How It Works
+              <ChevronRight size={18} />
             </button>
           </div>
         </div>
 
-        {/* Animated Document Icon */}
         <div className="hero-visual">
-          <div className="document-icon">
-            <div className="scan-line"></div>
-            <FileText size={120} color="var(--accent-primary)" strokeWidth={1} />
+          <div className="document-mockup">
+            <div className="mockup-header">
+              <div className="mockup-dots">
+                <span /><span /><span />
+              </div>
+              <span className="mockup-title">contract_review.pdf</span>
+            </div>
+            <div className="mockup-body">
+              <div className="mockup-line normal" style={{ width: '90%' }} />
+              <div className="mockup-line normal" style={{ width: '85%' }} />
+              <div className="mockup-line flagged critical" style={{ width: '92%' }}>
+                <span className="flag-label">⚠ Rights Given Up</span>
+              </div>
+              <div className="mockup-line normal" style={{ width: '78%' }} />
+              <div className="mockup-line flagged warning" style={{ width: '88%' }}>
+                <span className="flag-label">💰 Financial Impact</span>
+              </div>
+              <div className="mockup-line normal" style={{ width: '82%' }} />
+              <div className="mockup-line normal" style={{ width: '70%' }} />
+              <div className="mockup-line flagged info" style={{ width: '86%' }}>
+                <span className="flag-label">⚖ One-Sided Terms</span>
+              </div>
+              <div className="mockup-line normal" style={{ width: '75%' }} />
+              <div className="mockup-line normal" style={{ width: '60%' }} />
+            </div>
+            <div className="mockup-scan-line" />
+          </div>
+
+          {/* Stats strip under the mockup */}
+          <div className="hero-stats-strip">
+            <div className="hero-stat" ref={clauseRef}>
+              <span className="hero-stat-value">{'<'} {clauseCount === 100 ? '60' : Math.round(clauseCount * 0.6)}<span className="hero-stat-unit">s</span></span>
+              <span className="hero-stat-label">Analysis Time</span>
+            </div>
+            <div className="hero-stat-divider" />
+            <div className="hero-stat" ref={categoryRef}>
+              <span className="hero-stat-value">{categoryCount}</span>
+              <span className="hero-stat-label">Risk Categories</span>
+            </div>
+            <div className="hero-stat-divider" />
+            <div className="hero-stat" ref={privacyRef}>
+              <span className="hero-stat-value">{privacyCount}<span className="hero-stat-unit">%</span></span>
+              <span className="hero-stat-label">Private</span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
+      {/* How It Works — Pipeline */}
       <section id="how-it-works" className="how-it-works">
         <div className="section-header">
           <span className="section-subtitle">Workflow</span>
-          <h2>Three simple steps to peace of mind</h2>
+          <h2>From upload to insight in seconds</h2>
         </div>
 
-        <div className="steps-grid">
-          <div className="step-card">
-            <div className="step-number">01</div>
-            <div className="step-icon-wrapper blue">
-              <Upload size={32} />
-            </div>
-            <h3>Upload Securely</h3>
-            <p>Drag and drop your PDF document. Your data is encrypted in transit and never used to train our core models.</p>
+        <div className="pipeline-flow">
+          <div className="pipeline-step">
+            <div className="pipeline-icon blue"><Upload size={20} /></div>
+            <h3>Upload</h3>
+            <p>Drag & drop any PDF. Encrypted in transit, auto-deleted after analysis.</p>
           </div>
-          <div className="step-card">
-            <div className="step-number">02</div>
-            <div className="step-icon-wrapper purple">
-              <Sparkles size={32} />
-            </div>
-            <h3>Scan & Protect PII</h3>
-            <p>We extract text with Apryse, then automatically redact emails, phone numbers, and other personal details before AI ever sees your document.</p>
+          <div className="pipeline-connector"><ArrowRight size={20} /></div>
+          <div className="pipeline-step">
+            <div className="pipeline-icon purple"><Eye size={20} /></div>
+            <h3>OCR & Redact</h3>
+            <p>Apryse extracts text. Presidio NER redacts all personal data from the document.</p>
           </div>
-          <div className="step-card">
-            <div className="step-number">03</div>
-            <div className="step-icon-wrapper green">
-              <ShieldCheck size={32} />
-            </div>
-            <h3>Review & Take Action</h3>
-            <p>Review a clause-by-clause dashboard, fairness compare, PDF highlights, and an AI chat that answers questions about your document.</p>
+          <div className="pipeline-connector"><ArrowRight size={20} /></div>
+          <div className="pipeline-step">
+            <div className="pipeline-icon green"><Brain size={20} /></div>
+            <h3>AI Analysis</h3>
+            <p>Gemini 3.1 Pro classifies every clause by risk category and severity level.</p>
+          </div>
+          <div className="pipeline-connector"><ArrowRight size={20} /></div>
+          <div className="pipeline-step">
+            <div className="pipeline-icon orange"><MessageSquare size={20} /></div>
+            <h3>Chat & Explore</h3>
+            <p>Ask questions, compare fairness, listen to summaries, and view annotated PDFs.</p>
           </div>
         </div>
       </section>
 
-      {/* Supported Documents */}
+      {/* Feature Bento Grid */}
+      <section id="features" className="features-section">
+        <div className="section-header">
+          <span className="section-subtitle">Capabilities</span>
+          <h2>Everything you need to understand a contract</h2>
+        </div>
+
+        <div className="bento-grid">
+          <div className="bento-card">
+            <div className="bento-icon-wrap purple"><Brain size={20} /></div>
+            <h3>AI Clause Classification</h3>
+            <p>Gemini AI categorizes every clause — rights given up, one-sided terms, financial impact, missing protections — with severity ratings and plain-language explanations.</p>
+            <span className="bento-tag">Gemini 3.1 Pro Preview</span>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon-wrap teal"><ShieldCheck size={20} /></div>
+            <h3>PII Shield</h3>
+            <p>Dual-engine detection (Presidio NER + regex) redacts personal data before the LLM ever sees your document.</p>
+            <span className="bento-tag green">Privacy First</span>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon-wrap blue"><Scale size={20} /></div>
+            <h3>Fairness Score</h3>
+            <p>Compare every clause against industry standards. See exactly where your contract deviates from what's typical.</p>
+            <span className="bento-tag">0–100 Score</span>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon-wrap orange"><FileText size={20} /></div>
+            <h3>Annotated PDF Viewer</h3>
+            <p>Apryse WebViewer highlights clauses with color-coded risk levels. Click any clause to jump directly to it.</p>
+            <span className="bento-tag">Apryse WebViewer</span>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon-wrap green"><MessageSquare size={20} /></div>
+            <h3>Document Chat</h3>
+            <p>Ask natural-language questions about your contract. Keyword scoring + pgvector semantic search for best-in-class retrieval.</p>
+            <span className="bento-tag">Gemini Flash · pgvector</span>
+          </div>
+
+          <div className="bento-card">
+            <div className="bento-icon-wrap pink"><Mic size={20} /></div>
+            <h3>Voice &amp; Audio</h3>
+            <p>Speak your questions via Deepgram speech-to-text, and listen to AI-narrated summaries of your document's key findings.</p>
+            <span className="bento-tag">Deepgram Nova-3 · Aura-2</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Use Cases */}
       <section id="use-cases" className="supported-docs">
-        <h2>Where ClearClause helps most</h2>
-        <p className="section-desc">Optimized for the everyday agreements people actually sign.</p>
+        <div className="section-header">
+          <span className="section-subtitle">Use Cases</span>
+          <h2>Built for the documents that matter</h2>
+        </div>
         <div className="docs-grid">
           <div className="doc-item">
             <Home size={18} className="doc-icon text-blue" />
@@ -148,47 +287,21 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Why ClearClause */}
-      <section className="why-clearclause">
-        <div className="section-header">
-          <span className="section-subtitle">Why ClearClause</span>
-          <h2>What sets us apart</h2>
-        </div>
-        <div className="why-grid">
-          <div className="why-card">
-            <div className="why-icon"><Brain size={28} /></div>
-            <h3>AI Clause Classification</h3>
-            <p>Gemini AI categorizes every clause into risk categories — rights given up, one-sided terms, financial impact, and missing protections.</p>
-            <span className="why-badge">Powered by Gemini</span>
-          </div>
-          <div className="why-card">
-            <div className="why-icon"><MessageSquare size={28} /></div>
-            <h3>Document Chat</h3>
-            <p>Ask natural-language questions about your contract. "What are my termination rights?" — get instant, cited answers.</p>
-            <span className="why-badge">Context-Aware AI</span>
-          </div>
-          <div className="why-card">
-            <div className="why-icon"><Mic size={28} /></div>
-            <h3>Voice Summary</h3>
-            <p>Listen to an AI-narrated audio summary of your document's key findings — perfect for on-the-go review.</p>
-            <span className="why-badge">Deepgram Aura-2 TTS</span>
-          </div>
-          <div className="why-card">
-            <div className="why-icon"><Scale size={28} /></div>
-            <h3>Fairness Comparison</h3>
-            <p>Compare every clause against industry standards. See exactly where your contract deviates from what's typical.</p>
-            <span className="why-badge">Industry Benchmarks</span>
-          </div>
-          <div className="why-card">
-            <div className="why-icon" style={{ color: 'var(--success)' }}><ShieldCheck size={28} /></div>
-            <h3>Privacy-First</h3>
-            <p>Your documents are encrypted during transfer and automatically purged after analysis. We never store or train on your data.</p>
-            <span className="why-badge" style={{ background: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.2)', color: 'var(--success)' }}>Auto-Purge in 30 min</span>
-          </div>
-        </div>
+      {/* CTA Banner */}
+      <section className="cta-banner">
+        <div className="cta-glow" />
+        <h2>Ready to understand your next contract?</h2>
+        <p>Upload a document and get a full AI-powered analysis — clause by clause, risk by risk.</p>
+        <button
+          className="btn btn-primary btn-large"
+          onClick={() => navigate('/upload')}
+        >
+          <Search size={20} />
+          Start Free Analysis
+        </button>
       </section>
 
-      {/* Premium Footer */}
+      {/* Footer */}
       <footer className="landing-footer-premium">
         <div className="footer-content">
           <div className="footer-brand-col">
@@ -197,7 +310,7 @@ export default function LandingPage() {
               <span className="brand-name">ClearClause</span>
             </div>
             <p className="footer-desc">
-              Empowering individuals and businesses to understand their legal agreements through the power of artificial intelligence. We leverage advanced LLMs for production-quality legal analysis and risk detection.
+              Empowering individuals and businesses to understand their legal agreements through the power of AI. Built with Gemini, Apryse, and Deepgram.
             </p>
           </div>
           <div className="footer-text-col">
@@ -206,7 +319,7 @@ export default function LandingPage() {
         </div>
 
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} ClearClause Inc. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} ClearClause. All rights reserved.</p>
         </div>
       </footer>
     </div>

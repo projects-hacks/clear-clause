@@ -62,42 +62,66 @@ Each upload gets a unique session. Multiple documents can be analyzed simultaneo
 
 ## 🏗️ Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                       ClearClause System                         │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Frontend (Vercel)              Backend (Akamai LKE)             │
-│  ┌──────────────────┐           ┌──────────────────┐             │
-│  │  Vite + React 18 │──SSE/API─▶│   FastAPI         │            │
-│  │                  │           │                  │             │
-│  │  • Landing Page  │           │  Pipeline:       │             │
-│  │  • Upload        │           │  1. Apryse OCR   │             │
-│  │  • Dashboard     │           │  2. PII Redact   │             │
-│  │  • PDF Viewer    │           │  3. Gemini Pro   │             │
-│  │  • AI Chat       │           │  4. Clause Match │             │
-│  │  • Voice I/O     │           │  5. Vector Index │             │
-│  │  • Fairness      │           │                  │             │
-│  └──────────────────┘           │  Services:       │             │
-│                                 │  • Chat (Flash)  │             │
-│                                 │  • STT (Nova-2)  │             │
-│                                 │  • TTS (Aura-2)  │             │
-│                                 │  • Vector Store  │             │
-│                                 └──────────────────┘             │
-│                                   │       │       │       │      │
-│                                   ▼       ▼       ▼       ▼      │
-│                              ┌────────┐┌──────┐┌────────┐┌────┐  │
-│                              │ Apryse ││Gemini││Deepgram││ PG │  │
-│                              │  OCR   ││ 3.1  ││Nova/TTS││Vec │  │
-│                              └────────┘└──────┘└────────┘└────┘  │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Frontend["Frontend (Vite + React 18)"]
+        LP[Landing Page]
+        UP[Upload Page]
+        AP[Analysis Dashboard]
+        PV[PDF Viewer<br/>Apryse WebViewer]
+        CH[AI Chat Panel]
+        VI[Voice I/O]
+    end
+
+    subgraph Backend["Backend (FastAPI + Python 3.11)"]
+        API[REST API + SSE]
+
+        subgraph Pipeline["Analysis Pipeline"]
+            OCR[Apryse OCR<br/>Text Extraction]
+            PII[PII Shield<br/>Presidio NER + Regex]
+            AI[Gemini 3.1 Pro<br/>Clause Analysis]
+            VEC[Vector Indexing<br/>pgvector Embeddings]
+        end
+
+        CHAT[Chat Service<br/>Gemini Flash]
+        STT[STT Service<br/>Deepgram Nova-2]
+        TTS[TTS Service<br/>Deepgram Aura-2]
+        SM[Session Manager<br/>30-min TTL]
+    end
+
+    subgraph External["External Services"]
+        APRYSE[(Apryse SDK)]
+        GEMINI[(Google Gemini)]
+        DG[(Deepgram)]
+        PG[(PostgreSQL<br/>+ pgvector)]
+    end
+
+    UP -- "PDF Upload" --> API
+    AP -- "SSE Stream" --> API
+    CH -- "Chat Query" --> API
+    VI -- "Audio" --> API
+
+    API --> Pipeline
+    OCR --> PII --> AI --> VEC
+
+    API --> CHAT
+    API --> STT
+    API --> TTS
+
+    OCR -.-> APRYSE
+    AI -.-> GEMINI
+    CHAT -.-> GEMINI
+    STT -.-> DG
+    TTS -.-> DG
+    VEC -.-> PG
+    SM -.-> PG
+    PV -.-> APRYSE
 ```
 
 ## 💻 Tech Stack
 
 | Layer | Technology | Purpose |
-|-------|-----------|---------| 
+|-------|-----------|---------|
 | **Frontend** | Vite + React 18 | SPA with routing, context, custom hooks |
 | **Backend** | Python 3.11 + FastAPI | Async API with SSE streaming |
 | **OCR** | Apryse SDK | PDF text extraction with word-level positions |
