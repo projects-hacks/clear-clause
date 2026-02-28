@@ -117,9 +117,9 @@ export default function UploadPage() {
    */
   const handleSampleDocument = async (docName) => {
     const fileMap = {
-      'Airbnb ToS': 'airbnb_tos.pdf',
-      'NDA Template': 'nda_template.pdf',
-      'Insurance Policy': 'insurance_sample.pdf',
+      'Airbnb ToS': 'App Terms of Service.pdf',
+      'NDA Template': 'Freelance Non-Disclosure Agreement.pdf',
+      'Insurance Policy': 'Sample Health Insurance Policy.pdf',
     };
 
     const fileName = fileMap[docName];
@@ -275,159 +275,159 @@ export default function UploadPage() {
 
         {activePanel === 'upload' && (
           <>
-        {/* Drop Zone */}
-        <div
-          className={`drop-zone ${dragOver ? 'drag-over' : ''} ${selectedFile ? 'has-file' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          role="region"
-          aria-label="File drop zone"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              document.getElementById('file-input')?.click();
-            }
-          }}
-        >
-          {!selectedFile ? (
-            <>
-              <div className="drop-zone-icon" aria-hidden="true"><FileUp size={48} color="var(--accent-primary)" /></div>
-              <h2>Drag & drop your document</h2>
-              <p>or click to browse</p>
-              <p className="drop-zone-hint">Supports: PDF (up to 50MB)</p>
-              <p className="drop-zone-security"><ShieldCheck size={14} aria-hidden="true" /> Encrypted in transit · Auto-deleted after 30 min</p>
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                onChange={handleInputChange}
-                className="file-input"
-                id="file-input"
-                aria-label="Select PDF file to upload"
-              />
-              <label htmlFor="file-input" className="btn btn-secondary" role="button" tabIndex={0}>
-                Browse Files
-              </label>
-            </>
-          ) : (
-            <>
-              <div className="drop-zone-icon"><CheckCircle2 size={48} color="var(--success)" /></div>
-              <h2>Selected: {selectedFile.name}</h2>
-              <p>{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-              <button
-                className="btn btn-secondary"
-                onClick={() => setSelectedFile(null)}
-              >
-                Choose Different File
-              </button>
-            </>
-          )}
-        </div>
+            {/* Drop Zone */}
+            <div
+              className={`drop-zone ${dragOver ? 'drag-over' : ''} ${selectedFile ? 'has-file' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              role="region"
+              aria-label="File drop zone"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  document.getElementById('file-input')?.click();
+                }
+              }}
+            >
+              {!selectedFile ? (
+                <>
+                  <div className="drop-zone-icon" aria-hidden="true"><FileUp size={48} color="var(--accent-primary)" /></div>
+                  <h2>Drag & drop your document</h2>
+                  <p>or click to browse</p>
+                  <p className="drop-zone-hint">Supports: PDF (up to 50MB)</p>
+                  <p className="drop-zone-security"><ShieldCheck size={14} aria-hidden="true" /> Encrypted in transit · Auto-deleted after 30 min</p>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handleInputChange}
+                    className="file-input"
+                    id="file-input"
+                    aria-label="Select PDF file to upload"
+                  />
+                  <label htmlFor="file-input" className="btn btn-secondary" role="button" tabIndex={0}>
+                    Browse Files
+                  </label>
+                </>
+              ) : (
+                <>
+                  <div className="drop-zone-icon"><CheckCircle2 size={48} color="var(--success)" /></div>
+                  <h2>Selected: {selectedFile.name}</h2>
+                  <p>{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setSelectedFile(null)}
+                  >
+                    Choose Different File
+                  </button>
+                </>
+              )}
+            </div>
 
-        {/* Validation Error */}
-        {validationError && (
-          <div className="error-message" role="alert" aria-live="assertive">
-            <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
-            {validationError}
-          </div>
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <div className="error-message" role="alert" aria-live="assertive">
-            <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
-            {error}
-          </div>
-        )}
-
-        {/* Duplicate Error Message */}
-        {duplicateError && (
-          <div className="error-message" role="alert" aria-live="assertive">
-            <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
-            {duplicateError}
-          </div>
-        )}
-
-        {/* Analyze Button */}
-        {selectedFile && (
-          <button
-            className="btn btn-primary btn-large analyze-btn"
-            onClick={handleAnalyze}
-            disabled={isUploading}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 size={18} className="spinner" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Search size={18} /> Analyze Document
-              </>
+            {/* Validation Error */}
+            {validationError && (
+              <div className="error-message" role="alert" aria-live="assertive">
+                <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+                {validationError}
+              </div>
             )}
-          </button>
-        )}
 
-        {/* Sample Documents */}
-        <div className="sample-documents">
-          <div className="sample-section-header">
-            <h3>See a Real-World Example</h3>
-            <p>Don't have a document ready? Discover how ClearClause spots hidden risks in common contracts.</p>
-          </div>
-
-          <div className="sample-cards-grid">
-            <div
-              className="sample-doc-card"
-              onClick={() => handleSampleDocument('Airbnb ToS')}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('Airbnb ToS') }}
-            >
-              <div className="sample-icon purple"><Smartphone size={24} /></div>
-              <div className="sample-info">
-                <h4>App Terms of Service</h4>
-                <p>See exactly what data you're giving away and if you're waiving your right to sue.</p>
+            {/* Error Message */}
+            {error && (
+              <div className="error-message" role="alert" aria-live="assertive">
+                <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+                {error}
               </div>
-              <div className="sample-action"><Search size={14} /> Analyze ToS</div>
-            </div>
+            )}
 
-            <div
-              className="sample-doc-card"
-              onClick={() => handleSampleDocument('NDA Template')}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('NDA Template') }}
-            >
-              <div className="sample-icon green"><Handshake size={24} /></div>
-              <div className="sample-info">
-                <h4>Freelance NDA</h4>
-                <p>Check for overly broad IP assignments or unreasonable non-compete clauses.</p>
+            {/* Duplicate Error Message */}
+            {duplicateError && (
+              <div className="error-message" role="alert" aria-live="assertive">
+                <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+                {duplicateError}
               </div>
-              <div className="sample-action"><Search size={14} /> Analyze NDA</div>
-            </div>
+            )}
 
-            <div
-              className="sample-doc-card"
-              onClick={() => handleSampleDocument('Insurance Policy')}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('Insurance Policy'); }}
-            >
-              <div className="sample-icon blue"><Stethoscope size={24} /></div>
-              <div className="sample-info">
-                <h4>Health Insurance Policy</h4>
-                <p>See how ClearClause surfaces exclusions, deductibles, and hidden coverage gaps.</p>
+            {/* Analyze Button */}
+            {selectedFile && (
+              <button
+                className="btn btn-primary btn-large analyze-btn"
+                onClick={handleAnalyze}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 size={18} className="spinner" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Search size={18} /> Analyze Document
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Sample Documents */}
+            <div className="sample-documents">
+              <div className="sample-section-header">
+                <h3>See a Real-World Example</h3>
+                <p>Don't have a document ready? Discover how ClearClause spots hidden risks in common contracts.</p>
               </div>
-              <div className="sample-action"><Search size={14} /> Analyze Policy</div>
+
+              <div className="sample-cards-grid">
+                <div
+                  className="sample-doc-card"
+                  onClick={() => handleSampleDocument('Airbnb ToS')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('Airbnb ToS') }}
+                >
+                  <div className="sample-icon purple"><Smartphone size={24} /></div>
+                  <div className="sample-info">
+                    <h4>App Terms of Service</h4>
+                    <p>See exactly what data you're giving away and if you're waiving your right to sue.</p>
+                  </div>
+                  <div className="sample-action"><Search size={14} /> Analyze ToS</div>
+                </div>
+
+                <div
+                  className="sample-doc-card"
+                  onClick={() => handleSampleDocument('NDA Template')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('NDA Template') }}
+                >
+                  <div className="sample-icon green"><Handshake size={24} /></div>
+                  <div className="sample-info">
+                    <h4>Freelance NDA</h4>
+                    <p>Check for overly broad IP assignments or unreasonable non-compete clauses.</p>
+                  </div>
+                  <div className="sample-action"><Search size={14} /> Analyze NDA</div>
+                </div>
+
+                <div
+                  className="sample-doc-card"
+                  onClick={() => handleSampleDocument('Insurance Policy')}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSampleDocument('Insurance Policy'); }}
+                >
+                  <div className="sample-icon blue"><Stethoscope size={24} /></div>
+                  <div className="sample-info">
+                    <h4>Health Insurance Policy</h4>
+                    <p>See how ClearClause surfaces exclusions, deductibles, and hidden coverage gaps.</p>
+                  </div>
+                  <div className="sample-action"><Search size={14} /> Analyze Policy</div>
+                </div>
+              </div>
+              {sampleError && (
+                <div className="error-message" role="alert" style={{ marginTop: 'var(--space-4)' }}>
+                  <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
+                  {sampleError}
+                </div>
+              )}
             </div>
-          </div>
-          {sampleError && (
-            <div className="error-message" role="alert" style={{ marginTop: 'var(--space-4)' }}>
-              <span className="error-icon"><AlertTriangle size={18} aria-hidden="true" /></span>
-              {sampleError}
-            </div>
-          )}
-        </div>
           </>
         )}
 
