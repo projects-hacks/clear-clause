@@ -13,9 +13,17 @@ export default function AIAssistantPanel({ sessionId }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isVoiceOn, setIsVoiceOn] = useState(false);
+    const [isVoiceOn, setIsVoiceOn] = useState(() => {
+        const saved = localStorage.getItem('clearclause_voice_on');
+        return saved !== null ? saved === 'true' : false;
+    });
     const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
     const [initializedFromStorage, setInitializedFromStorage] = useState(false);
+
+    // Persist voice setting
+    useEffect(() => {
+        localStorage.setItem('clearclause_voice_on', isVoiceOn);
+    }, [isVoiceOn]);
 
     const messagesEndRef = useRef(null);
     const currentAudioSourceRef = useRef(null);
@@ -94,14 +102,20 @@ export default function AIAssistantPanel({ sessionId }) {
             lastPlayedIdRef.current = lastMessage.id;
             playTTS(lastMessage.content, lastMessage.id);
         }
-    }, [messages, isVoiceOn, currentlyPlaying]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [messages]); // Remove isVoiceOn and currentlyPlaying to prevent repeating audio on state toggle
 
     const playTTS = async (text, msgId) => {
         try {
             setCurrentlyPlaying(msgId);
 
-            // Strip markdown like **, *, #, etc. so the voice doesn't read "asterisk"
-            const plainText = text.replace(/[*#_`~]/g, '').trim();
+            // Strip markdown like **, *, #, etc. so the voice doesn't read them
+            const plainText = text
+                .replace(/[*#_`~]/g, '')
+                .replace(/[\[\]()]/g, '')
+                .replace(/-\s/g, '')
+                .replace(/clause_(\d+)/gi, 'clause $1')
+                .trim();
 
             const audioBlob = await generateSpeech(sessionId, plainText);
             const url = URL.createObjectURL(audioBlob);

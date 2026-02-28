@@ -385,6 +385,24 @@ export default function AnalysisPage() {
           )}
         </div>
         <div className="header-actions">
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="header-info-btn"
+              onClick={() => setShowOnboarding(true)}
+              title="What you can do here"
+              aria-label="Show tips for using this analysis view"
+            >
+              <Info size={16} />
+            </button>
+            <AnalysisOnboarding
+              visible={showOnboarding}
+              onDismiss={() => {
+                setShowOnboarding(false);
+                localStorage.setItem('clearclause-analysis-onboarding-seen', 'true');
+              }}
+            />
+          </div>
           <button
             className="btn btn-secondary"
             type="button"
@@ -392,15 +410,6 @@ export default function AnalysisPage() {
           >
             <Upload size={14} style={{ marginRight: 6 }} />
             Analyze Another Document
-          </button>
-          <button
-            type="button"
-            className="header-info-btn"
-            onClick={() => setShowOnboarding(true)}
-            title="What you can do here"
-            aria-label="Show tips for using this analysis view"
-          >
-            <Info size={16} />
           </button>
           <ThemeToggle />
           <button
@@ -470,13 +479,6 @@ export default function AnalysisPage() {
 
         {/* Right: Dashboard or Chat */}
         <div className="side-panel" style={{ width: sidebarWidth }}>
-          <AnalysisOnboarding
-            visible={showOnboarding}
-            onDismiss={() => {
-              setShowOnboarding(false);
-              localStorage.setItem('clearclause-analysis-onboarding-seen', 'true');
-            }}
-          />
           {activeTab === 'dashboard' && session.result && (
             <Dashboard
               result={session.result}

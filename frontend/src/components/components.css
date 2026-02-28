@@ -86,9 +86,10 @@
 /* Analysis Onboarding */
 .analysis-onboarding {
   position: absolute;
-  top: var(--space-6);
-  right: var(--space-6);
+  top: calc(100% + var(--space-2));
+  left: 0;
   z-index: var(--z-dropdown);
+  min-width: 280px;
   max-width: 320px;
   padding: var(--space-4);
   background: var(--bg-secondary);
@@ -146,11 +147,13 @@
 
 @media (max-width: 768px) {
   .analysis-onboarding {
+    position: fixed;
     top: auto;
     bottom: 90px;
     right: var(--space-4);
     left: var(--space-4);
     max-width: none;
+    z-index: 1000;
   }
 }
 
