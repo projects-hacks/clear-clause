@@ -2,6 +2,7 @@
 TTS Service - Deepgram Aura-2 Text-to-Speech
 
 Generates voice summaries from analysis text.
+Uses Deepgram SDK v6 API.
 """
 import structlog
 
@@ -15,14 +16,14 @@ settings = get_settings()
 
 async def generate_voice_summary(
     text: str,
-    voice: str = "aura-asteria-en",
+    voice: str = "aura-2-asteria-en",
 ) -> bytes:
     """
     Generate audio from text using Deepgram TTS.
     
     Args:
         text: Text to convert to speech
-        voice: Voice model (default: aura-asteria-en)
+        voice: Voice model (default: aura-2-asteria-en)
         
     Returns:
         Audio bytes (WAV format)
@@ -39,29 +40,24 @@ async def generate_voice_summary(
         raise ConfigurationError("DEEPGRAM_API_KEY not configured")
     
     try:
-        from deepgram import DeepgramClient, SpeakOptions
+        from deepgram import DeepgramClient
         
         # Create client
         client = DeepgramClient(api_key=api_key)
         
-        # Configure speech options
-        options = SpeakOptions(
-            model="aura-2-en",
+        # Generate audio using SDK v6 API
+        # Returns Iterator[bytes]
+        audio_stream = client.speak.v1.audio.generate(
+            text=text,
+            model=voice,
             encoding="linear16",
             sample_rate=24000,
             container="wav",
         )
         
-        # Generate audio
-        response = client.speak.rest.v("1").stream_raw(
-            {"text": text},
-            options
-        )
-        
-        # Collect audio bytes
+        # Collect audio bytes from iterator
         audio_bytes = b""
-        
-        for chunk in response.stream:
+        for chunk in audio_stream:
             audio_bytes += chunk
         
         logger.info(
@@ -77,7 +73,7 @@ async def generate_voice_summary(
         return _generate_mock_audio(text)
     
     except Exception as e:
-        logger.error("TTS generation failed", error=str(e))
+        logger.error("TTS generation failed", error=str(e), error_type=type(e).__name__)
         raise
 
 

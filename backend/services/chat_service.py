@@ -89,7 +89,7 @@ def _select_relevant_clauses(
 async def chat_with_document(
     question: str,
     document_context: dict,
-    max_tokens: int = 512,
+    max_tokens: int = 2048,
     session_id: str | None = None,
 ) -> ChatResponse:
     """
