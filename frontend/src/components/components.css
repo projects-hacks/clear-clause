@@ -2193,12 +2193,23 @@
 
 .clause-badges {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .clause-page {
   font-size: var(--text-xs);
   color: var(--text-tertiary);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Highlighted state when selected from document viewer */
+.clause-card.highlighted {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-sm);
+  background-color: var(--surface-hover);
 }
 
 .clause-text {

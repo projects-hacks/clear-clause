@@ -12,7 +12,7 @@ import { AlertTriangle, ClipboardList, Scale, FileSearch, ShieldCheck } from 'lu
 /**
  * Dashboard
  */
-export default function Dashboard({ result, onClauseSelect }) {
+export default function Dashboard({ result, onClauseSelect, selectedClauseId }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [expandedClause, setExpandedClause] = useState(null);
   const [activeTab, setActiveTab] = useState('clauses'); // 'clauses' | 'fairness'
@@ -24,9 +24,29 @@ export default function Dashboard({ result, onClauseSelect }) {
 
   // Sort clauses by severity
   const severityOrder = { critical: 0, warning: 1, info: 2, safe: 3 };
-  const sortedClauses = [...filteredClauses].sort(
-    (a, b) => severityOrder[a.severity] - severityOrder[b.severity]
-  );
+  const sortedClauses = [...filteredClauses].sort((a, b) => {
+    // First sort by severity
+    const sevDiff = severityOrder[a.severity] - severityOrder[b.severity];
+    if (sevDiff !== 0) return sevDiff;
+    // Then sort by page number for same-severity clauses
+    return (a.page_number || 0) - (b.page_number || 0);
+  });
+
+  // Auto-scroll when selectedClauseId changes
+  React.useEffect(() => {
+    if (selectedClauseId && activeTab === 'clauses') {
+      // Auto-expand the clause when selected from viewer
+      setExpandedClause(selectedClauseId);
+
+      // Delay scrolling slightly to let the expand animation start/finish
+      setTimeout(() => {
+        const el = document.getElementById(`clause-card-${selectedClauseId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [selectedClauseId, activeTab]);
 
   return (
     <div className="dashboard">
@@ -157,15 +177,17 @@ export default function Dashboard({ result, onClauseSelect }) {
               </div>
             ) : (
               sortedClauses.map((clause) => (
-                <ClauseCard
-                  key={clause.clause_id}
-                  clause={clause}
-                  isExpanded={expandedClause === clause.clause_id}
-                  onToggle={() => setExpandedClause(
-                    expandedClause === clause.clause_id ? null : clause.clause_id
-                  )}
-                  onClick={() => onClauseSelect(clause.clause_id)}
-                />
+                <div key={clause.clause_id} id={`clause-card-${clause.clause_id}`}>
+                  <ClauseCard
+                    clause={clause}
+                    isExpanded={expandedClause === clause.clause_id}
+                    isHighlighted={selectedClauseId === clause.clause_id}
+                    onToggle={() => setExpandedClause(
+                      expandedClause === clause.clause_id ? null : clause.clause_id
+                    )}
+                    onClick={() => onClauseSelect(clause.clause_id)}
+                  />
+                </div>
               ))
             )}
           </div>

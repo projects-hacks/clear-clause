@@ -10,7 +10,7 @@ import { CATEGORIES, SEVERITIES } from '../../utils/constants';
 /**
  * Clause Card
  */
-export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
+export default function ClauseCard({ clause, isExpanded, isHighlighted, onToggle, onClick }) {
   const {
     clause_id,
     text,
@@ -27,7 +27,7 @@ export default function ClauseCard({ clause, isExpanded, onToggle, onClick }) {
 
   return (
     <div
-      className={`clause-card ${category} ${severity} ${isExpanded ? 'expanded' : ''}`}
+      className={`clause-card ${category} ${severity} ${isExpanded ? 'expanded' : ''} ${isHighlighted ? 'highlighted' : ''}`}
       onClick={onToggle}
       role="button"
       tabIndex={0}

@@ -21,7 +21,7 @@ function getCategoryColor(category) {
 /**
  * Document Viewer
  */
-export default function DocumentViewer({ sessionId, clauses = [], selectedClauseId }) {
+export default function DocumentViewer({ sessionId, clauses = [], selectedClauseId, onAnnotationClick }) {
   const viewerRef = useRef(null);
   const instanceRef = useRef(null);
   const [isViewerReady, setIsViewerReady] = useState(false);
@@ -89,6 +89,18 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
           console.error('Document load error:', err);
           if (isMounted) {
             setError('Document session expired or not found. Please re-upload your document.');
+          }
+        });
+
+        // Listen for user clicks on annotations
+        const { annotationManager } = instance.Core;
+        annotationManager.addEventListener('annotationSelected', (annotations, action) => {
+          if (action === 'selected' && annotations.length > 0 && onAnnotationClick) {
+            const annot = annotations[0];
+            const clauseId = annot.getCustomData('clauseId');
+            if (clauseId) {
+              onAnnotationClick(clauseId);
+            }
           }
         });
 

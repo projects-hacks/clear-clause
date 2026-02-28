@@ -264,7 +264,7 @@ export default function AnalysisPage() {
   if (session.status !== 'complete' && session.status !== 'error') {
     const steps = [
       { key: 'uploading', label: 'Uploading', desc: 'Receiving document...', icon: Upload },
-      { key: 'extracting', label: 'Extracting', desc: 'OCR text extraction...', icon: FileSearch },
+      { key: 'extracting', label: 'Extracting', desc: 'Extracting text with Apryse OCR...', icon: FileSearch },
       { key: 'redacting', label: 'Redacting', desc: 'Masking personal information...', icon: ShieldCheck },
       { key: 'analyzing', label: 'Analyzing', desc: 'AI clause classification...', icon: Brain },
       { key: 'complete', label: 'Complete', desc: 'Results ready!', icon: CheckCircle2 },
