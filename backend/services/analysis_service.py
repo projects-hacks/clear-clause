@@ -177,7 +177,7 @@ class GeminiAnalysisService:
         document_name: str,
         document_text: str,
     ) -> AnalysisResult:
-        """Build AnalysisResult from Gemini response."""
+        """Build AnalysisResult from AI response."""
         clauses_data = response_data.get("clauses", [])
         
         # Build clause classifications
