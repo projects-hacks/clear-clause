@@ -211,7 +211,6 @@ export async function askQuestion(sessionId, question, history = [], options = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'text/event-stream'
     },
     body: JSON.stringify({
       question,
@@ -242,6 +241,21 @@ export async function askQuestion(sessionId, question, history = [], options = {
     throw error;
   }
 
+  // Detect response format: SSE stream vs plain JSON
+  const contentType = response.headers.get('content-type') || '';
+  const isSSE = contentType.includes('text/event-stream');
+
+  // --- Plain JSON fallback (old backend or non-streaming) ---
+  if (!isSSE) {
+    const data = await response.json();
+    const answer = data.answer || '';
+    const sources = data.sources || [];
+    if (onChunk && answer) onChunk(answer, answer);
+    if (onSources && sources.length) onSources(sources);
+    return { answer, sources };
+  }
+
+  // --- SSE streaming ---
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8');
 
