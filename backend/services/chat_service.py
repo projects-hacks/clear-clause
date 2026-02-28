@@ -10,8 +10,10 @@ is performed once up-front in the analysis pipeline. Here we:
 - Build a focused prompt for Gemini Flash using overall summary + top
   concerns + a subset of clauses likely relevant to the question.
 """
+import json
 import structlog
 import re
+from typing import AsyncGenerator
 
 from config import get_settings
 from api.schemas import ChatResponse, AnalysisResult
