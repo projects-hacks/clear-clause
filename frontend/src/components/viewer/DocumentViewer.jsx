@@ -132,12 +132,13 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
   }, [isViewerReady, clauses]);
 
   /**
-   * Add highlight annotations for clauses
+   * Add highlight annotations for clauses using Apryse text search
+   * for pixel-perfect positioning.
    */
   const addAnnotations = async (instance, clauseList) => {
     try {
-      // WebViewer v10+: access via Core namespace
-      const { annotationManager, Annotations } = instance.Core;
+      const { documentViewer, annotationManager, Annotations } = instance.Core;
+      const doc = documentViewer.getDocument();
 
       // Clear existing ClearClause annotations
       const existingAnnots = annotationManager.getAnnotationsList();
@@ -147,7 +148,8 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
         }
       }
 
-      // Add highlight for each clause
+      let addedCount = 0;
+
       for (const clause of clauseList) {
         const highlight = new Annotations.TextHighlightAnnotation();
         highlight.PageNumber = clause.page_number;
@@ -161,13 +163,54 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
         highlight.setCustomData('clauseId', clause.clause_id);
         highlight.setCustomData('isClearClause', 'true');
 
-        // Set position from Apryse OCR bounding box
-        if (clause.position && clause.position.x1 !== undefined) {
+        let foundText = false;
+
+        // --- Production approach: use Apryse text search ---
+        // Search for the clause text within the PDF page to get exact quads
+        try {
+          const pageNum = clause.page_number;
+          if (pageNum && doc) {
+            // Load the text content for this page
+            const pageText = await doc.loadPageText(pageNum);
+
+            if (pageText) {
+              // Use the first ~80 chars of the clause text as a search snippet
+              // (long clauses might have OCR/LLM differences at the end)
+              const searchSnippet = clause.text.substring(0, Math.min(clause.text.length, 80)).trim();
+
+              // Case-insensitive search for the snippet in the page text
+              const lowerPage = pageText.toLowerCase();
+              const lowerSnippet = searchSnippet.toLowerCase();
+              const startIdx = lowerPage.indexOf(lowerSnippet);
+
+              if (startIdx !== -1) {
+                // Found exact text — get pixel-perfect quads from Apryse
+                const endIdx = Math.min(
+                  startIdx + clause.text.length,
+                  pageText.length
+                );
+                const quads = await doc.getTextPosition(pageNum, startIdx, endIdx);
+
+                if (quads && quads.length > 0) {
+                  highlight.Quads = quads.map(
+                    (q) => new Annotations.Quad(q.x1, q.y1, q.x2, q.y2, q.x3, q.y3, q.x4, q.y4)
+                  );
+                  foundText = true;
+                }
+              }
+            }
+          }
+        } catch (searchErr) {
+          // Text search failed for this clause — fall back to backend position
+          console.warn(`Apryse text search failed for ${clause.clause_id}:`, searchErr);
+        }
+
+        // --- Fallback: use backend-computed bounding box ---
+        if (!foundText && clause.position && clause.position.x1 !== undefined) {
           const { x1, y1, x2, y2 } = clause.position;
-          // TextHighlightAnnotation expects Quads
           highlight.Quads = [
             new Annotations.Quad(
-              x1, y2,  // top-left (x1, y2 because PDF coords are bottom-up)
+              x1, y2,  // top-left
               x2, y2,  // top-right
               x2, y1,  // bottom-right
               x1, y1   // bottom-left
@@ -175,8 +218,8 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
           ];
         }
 
-        // Add to viewer
         annotationManager.addAnnotation(highlight);
+        addedCount++;
       }
 
       // Redraw annotations
@@ -184,7 +227,7 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
         annotationManager.getAnnotationsList()
       );
 
-      console.log(`Added ${clauseList.length} clause annotations`);
+      console.log(`Added ${addedCount} clause annotations`);
     } catch (err) {
       console.error('Failed to add annotations:', err);
     }
