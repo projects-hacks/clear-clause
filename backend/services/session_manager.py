@@ -1,29 +1,21 @@
 """
-Session Manager for Multi-Document Concurrency
+Session Manager
 
-Handles concurrent analysis sessions with:
-- Unique session IDs per upload
-- In-memory storage with TTL-based cleanup
-- Thread-safe operations for concurrent requests
-- Progress tracking per session
+Manages analysis sessions with PostgreSQL persistence.
 """
 import asyncio
+import json
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Any
-from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
+from dataclasses import dataclass, field, asdict
+from typing import Optional, Any
 from enum import Enum
+import asyncpg
 import structlog
-
 from config import get_settings
 
 logger = structlog.get_logger()
 settings = get_settings()
-
-try:
-    import asyncpg  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency
-    asyncpg = None
 
 _db_pool = None
 _db_tables_initialized = False
@@ -334,8 +326,8 @@ class SessionManager:
                         session.created_at,
                         session.updated_at,
                         session.expires_at,
-                        session.result,
-                        session.message_history,
+                        json.dumps(session.result) if session.result is not None else None,
+                        json.dumps(session.message_history) if session.message_history else '[]',
                         session.temp_file_path,
                         session.document_bytes,
                     )
@@ -503,8 +495,8 @@ class SessionManager:
                     current_progress,
                     current_message,
                     current_error,
-                    current_result,
-                    history,
+                    json.dumps(current_result) if current_result is not None else None,
+                    json.dumps(history) if history else '[]',
                     updated_at,
                 )
 
