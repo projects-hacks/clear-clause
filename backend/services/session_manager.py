@@ -8,7 +8,7 @@ import json
 import uuid
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Any
+from typing import Dict, Optional, Any
 from enum import Enum
 import asyncpg
 import structlog
