@@ -200,9 +200,11 @@ export async function cancelSession(sessionId) {
  * 
  * @param {string} sessionId - Session ID
  * @param {string} question - User question
+ * @param {Array} history - Previous chat messages
+ * @param {Object} options - Additional API options
  * @returns {Promise<ChatResponse>}
  */
-export async function askQuestion(sessionId, question, options = {}) {
+export async function askQuestion(sessionId, question, history = [], options = {}) {
   const response = await fetch(`${API_BASE_URL}/chat?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: {
@@ -210,6 +212,7 @@ export async function askQuestion(sessionId, question, options = {}) {
     },
     body: JSON.stringify({
       question,
+      history,
     }),
     signal: options.signal,
   });
@@ -304,7 +307,7 @@ export async function transcribeAudio(sessionId, audioBlob) {
   if (!response.ok) {
     let raw = '';
     let message = 'Transcription failed';
-      try {
+    try {
       raw = await response.text();
       try {
         const body = JSON.parse(raw);

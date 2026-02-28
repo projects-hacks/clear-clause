@@ -159,6 +159,7 @@ class SessionStatus(BaseModel):
 class ChatRequest(BaseModel):
     """Request for document-aware chat."""
     question: str = Field(description="User's question about the document")
+    history: Optional[List[dict]] = Field(default=None, description="Previous messages in the conversation")
     max_tokens: int = Field(default=512, ge=64, le=2048)
     
     model_config = {

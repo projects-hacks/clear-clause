@@ -119,10 +119,11 @@ Clauses:
 
 ---
 
+{history_text}
+
 User Question: {question}
 
-Answer the question based on the document analysis above. Cite specific
-clauses by their clause_id when relevant.
+Answer the question based on the document analysis above and previous conversation context. Cite specific clauses by their clause_id when relevant.
 """
 
 

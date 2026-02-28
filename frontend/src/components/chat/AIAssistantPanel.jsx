@@ -77,6 +77,8 @@ export default function AIAssistantPanel({ sessionId }) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    const lastPlayedIdRef = useRef(null);
+
     // Play audio for new assistant messages (but never auto-play the welcome)
     useEffect(() => {
         const lastMessage = messages[messages.length - 1];
@@ -86,8 +88,10 @@ export default function AIAssistantPanel({ sessionId }) {
             lastMessage.id !== 'welcome' &&
             isVoiceOn &&
             !lastMessage.isError &&
-            lastMessage.id !== currentlyPlaying
+            lastMessage.id !== currentlyPlaying &&
+            lastMessage.id !== lastPlayedIdRef.current
         ) {
+            lastPlayedIdRef.current = lastMessage.id;
             playTTS(lastMessage.content, lastMessage.id);
         }
     }, [messages, isVoiceOn, currentlyPlaying]);
@@ -187,7 +191,15 @@ export default function AIAssistantPanel({ sessionId }) {
             const controller = new AbortController();
             chatAbortRef.current = controller;
 
-            const response = await askQuestion(sessionId, textContent, { signal: controller.signal });
+            // Extract chat history to send to backend (excluding welcome banner and errors)
+            const chatHistory = messages
+                .filter(m => m.id !== 'welcome' && !m.isError)
+                .map(m => ({
+                    role: m.role,
+                    content: m.content
+                }));
+
+            const response = await askQuestion(sessionId, textContent, chatHistory, { signal: controller.signal });
 
             const assistantMessage = {
                 id: (Date.now() + 1).toString(),

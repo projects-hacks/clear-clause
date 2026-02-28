@@ -91,6 +91,7 @@ async def chat_with_document(
     document_context: dict,
     max_tokens: int = 2048,
     session_id: str | None = None,
+    history: list[dict] | None = None,
 ) -> ChatResponse:
     """
     Answer a question about an analyzed document.
@@ -101,6 +102,8 @@ async def chat_with_document(
         question: User's question
         document_context: Analysis result dict from earlier analysis
         max_tokens: Max tokens in response
+        session_id: The analysis session ID
+        history: Previous chat messages for context
 
     Returns:
         ChatResponse with answer and source references
@@ -109,7 +112,8 @@ async def chat_with_document(
         "Chat request",
         document=document_context.get('document_name', 'unknown'),
         question=question,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
+        history_length=len(history) if history else 0
     )
 
     # Rate limiting
@@ -123,6 +127,7 @@ async def chat_with_document(
             document_context,
             max_tokens,
             session_id,
+            history,
         )
     except Exception as e:
         logger.error("Chat failed", error=str(e))
@@ -137,6 +142,7 @@ async def _call_gemini_chat(
     document_context: dict,
     max_tokens: int,
     session_id: str | None = None,
+    history: list[dict] | None = None,
 ) -> ChatResponse:
     """Call Gemini for chat response."""
     try:
@@ -183,6 +189,18 @@ async def _call_gemini_chat(
             )
         clauses_text = "\n".join(clauses_summary)
         
+        # Format conversation history
+        history_text = ""
+        if history:
+            history_text = "Conversation History:\n"
+            # Take the last 6 messages to keep context window reasonable
+            for msg in history[-6:]:
+                role = "User: " if msg.get("role") == "user" else "Assistant: "
+                # Replace actual newlines in messages so they read as a block per message
+                content = (msg.get("content") or "").replace("\n", " ")
+                history_text += f"{role}{content}\n"
+            history_text += "\n---"
+
         # Build prompt
         user_prompt = CHAT_USER_PROMPT.format(
             document_name=document_context.get('document_name', 'Unknown'),
@@ -191,6 +209,7 @@ async def _call_gemini_chat(
             summary=document_context.get('summary', 'No summary available'),
             top_concerns="\n".join(f"- {c}" for c in document_context.get('top_concerns', [])),
             clauses_json=clauses_text,
+            history_text=history_text,
             question=question,
         )
         
