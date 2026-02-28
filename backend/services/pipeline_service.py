@@ -223,7 +223,7 @@ async def run_analysis_pipeline(
             session_id=session_id,
             status=SessionStatusEnum.REDACTING,
             progress=45,
-            message="🛡️ Scanning for personal information..."
+            message="Scanning for personal information..."
         )
         
         redacted_text, pii_map, pii_categories = redact_text(ocr_result.full_text)
@@ -235,7 +235,7 @@ async def run_analysis_pipeline(
                 session_id=session_id,
                 status=SessionStatusEnum.REDACTING,
                 progress=50,
-                message=f"🛡️ Redacted {len(pii_map)} PII items before AI analysis"
+                message=f"Redacted {len(pii_map)} PII items before AI analysis"
             )
         else:
             await session_manager.update_session(

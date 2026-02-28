@@ -174,22 +174,45 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
             const pageText = await doc.loadPageText(pageNum);
 
             if (pageText) {
-              // Use the first ~80 chars of the clause text as a search snippet
-              // (long clauses might have OCR/LLM differences at the end)
-              const searchSnippet = clause.text.substring(0, Math.min(clause.text.length, 80)).trim();
+              // Helper to build a regex pattern that ignores whitespace discrepancies
+              const buildRegexPattern = (textSnippet) => {
+                const words = textSnippet.trim().split(/\s+/);
+                return words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+              };
 
-              // Case-insensitive search for the snippet in the page text
-              const lowerPage = pageText.toLowerCase();
-              const lowerSnippet = searchSnippet.toLowerCase();
-              const startIdx = lowerPage.indexOf(lowerSnippet);
+              const words = clause.text.trim().split(/\s+/);
+              let startIdx = -1;
+              let endIdx = -1;
 
-              if (startIdx !== -1) {
-                // Found exact text — get pixel-perfect quads from Apryse
-                const endIdx = Math.min(
-                  startIdx + clause.text.length,
-                  pageText.length
-                );
-                const quads = await doc.getTextPosition(pageNum, startIdx, endIdx);
+              // 1. Try matching the entire clause first (most exact)
+              const fullMatch = pageText.match(new RegExp(buildRegexPattern(clause.text), 'i'));
+
+              if (fullMatch) {
+                startIdx = fullMatch.index;
+                endIdx = startIdx + fullMatch[0].length;
+              } else if (words.length >= 6) {
+                // 2. If full match fails (e.g. LLM hallucinates a word), try just the first/last few words
+                const startRegex = new RegExp(buildRegexPattern(words.slice(0, 6).join(' ')), 'i');
+                const startMatch = pageText.match(startRegex);
+
+                if (startMatch) {
+                  startIdx = startMatch.index;
+
+                  const endRegex = new RegExp(buildRegexPattern(words.slice(-6).join(' ')), 'i');
+                  const endMatch = pageText.match(endRegex);
+
+                  if (endMatch && endMatch.index > startIdx) {
+                    endIdx = endMatch.index + endMatch[0].length;
+                  } else {
+                    // Estimate end if we can't find the exact end words
+                    endIdx = Math.min(startIdx + clause.text.length + (words.length * 0.5), pageText.length);
+                  }
+                }
+              }
+
+              if (startIdx !== -1 && endIdx > startIdx) {
+                // Found EXACT start and end character indices in the PDF text stream
+                const quads = await doc.getTextPosition(pageNum, Math.floor(startIdx), Math.floor(endIdx));
 
                 if (quads && quads.length > 0) {
                   highlight.Quads = quads.map(
