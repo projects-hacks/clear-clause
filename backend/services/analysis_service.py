@@ -4,6 +4,7 @@ Analysis Service - Gemini 3.1 Pro integration
 Analyzes extracted document text and classifies clauses.
 Uses structured JSON output for reliable parsing.
 """
+import asyncio
 import json
 from typing import List, Dict, Any
 import structlog
@@ -125,7 +126,11 @@ class GeminiAnalysisService:
             import google.genai as genai
             
             # Generate response with JSON schema
-            response = client.models.generate_content(
+            # Run in thread pool to avoid blocking the event loop during
+            # long Gemini API calls (can take 60-90s for large documents).
+            # This keeps K8s liveness probes and other requests responsive.
+            response = await asyncio.to_thread(
+                client.models.generate_content,
                 model=self.model_name,
                 contents=f"{system_prompt}\n\n{user_prompt}",
                 config=genai.types.GenerateContentConfig(

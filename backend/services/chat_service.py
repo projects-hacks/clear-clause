@@ -10,6 +10,7 @@ is performed once up-front in the analysis pipeline. Here we:
 - Build a focused prompt for Gemini Flash using overall summary + top
   concerns + a subset of clauses likely relevant to the question.
 """
+import asyncio
 import json
 import structlog
 import re
@@ -211,22 +212,47 @@ async def _call_gemini_chat_stream(
         )
         
         # Generate streamed response
-        response_stream = client.models.generate_content_stream(
-            model=settings.gemini_chat_model,
-            contents=f"{CHAT_SYSTEM_PROMPT}\n\n{user_prompt}",
-            config=genai.types.GenerateContentConfig(
-                temperature=0.3,  # Slightly higher for conversational tone
-                max_output_tokens=max_tokens,
-            )
-        )
-        
+        # The Gemini SDK's generate_content_stream() iterator is synchronous
+        # and blocks the event loop on each chunk.  We offload iteration to a
+        # thread and bridge chunks back via an asyncio.Queue so the event loop
+        # stays responsive for health-checks and concurrent requests.
+        queue: asyncio.Queue = asyncio.Queue()
+        _SENTINEL = object()  # marks end of stream
+
+        def _stream_in_thread():
+            """Run in a worker thread — blocks on the sync iterator."""
+            try:
+                stream = client.models.generate_content_stream(
+                    model=settings.gemini_chat_model,
+                    contents=f"{CHAT_SYSTEM_PROMPT}\n\n{user_prompt}",
+                    config=genai.types.GenerateContentConfig(
+                        temperature=0.3,
+                        max_output_tokens=max_tokens,
+                    )
+                )
+                for chunk in stream:
+                    if chunk.text:
+                        queue.put_nowait(chunk.text)
+            except Exception as exc:
+                queue.put_nowait(exc)
+            finally:
+                queue.put_nowait(_SENTINEL)
+
+        # Start the blocking stream in a background thread
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, _stream_in_thread)
+
         full_answer = ""
-        
-        # Stream text chunks directly down to the client
-        for chunk in response_stream:
-            if chunk.text:
-                full_answer += chunk.text
-                yield f"data: {json.dumps({'text': chunk.text})}\n\n"
+
+        # Consume chunks asynchronously
+        while True:
+            item = await queue.get()
+            if item is _SENTINEL:
+                break
+            if isinstance(item, Exception):
+                raise item
+            full_answer += item
+            yield f"data: {json.dumps({'text': item})}\n\n"
         
         # After completing the text stream, quickly parse it for clause references
         # and send them as the final chunk
