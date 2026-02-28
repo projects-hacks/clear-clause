@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "http://104.200.26.15/api/:path*"
+    },
+    {
+      "source": "/((?!assets|favicon|sw|workbox|manifest).*)",
+      "destination": "/index.html"
     }
   ]
 }
