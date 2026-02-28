@@ -2,11 +2,7 @@
 
 > **Every clause, crystal clear.** Upload any complex document. Instantly understand what it really says, what's risky, and what to do about it.
 
-![DevDash 2026](https://img.shields.io/badge/DevDash-2026-blue)
-![Python](https://img.shields.io/badge/Python-3.11+-green)
-![React](https://img.shields.io/badge/React-18-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
-![AI](https://img.shields.io/badge/Gemini%203.1-Pro-orange)
+<img width="1512" height="733" alt="image" src="https://github.com/user-attachments/assets/9ed6ac9c-90f0-40c4-9f35-5c652b81d63e" />
 
 ## 🎯 The Problem
 
@@ -177,8 +173,7 @@ npm run dev            # http://localhost:5173
 | `GEMINI_API_KEY` | Yes | Google Gemini API key |
 | `APRYSE_LICENSE_KEY` | Yes | Apryse SDK license |
 | `DEEPGRAM_API_KEY` | Yes | Deepgram API key |
-| `VECTOR_DB_URL` | No | PostgreSQL connection string (enables Postgres sessions + pgvector) |
-| `admin_api_key` | No | API key for admin endpoints |
+| `VECTOR_DB_URL` | Yes | PostgreSQL connection string (enables Postgres sessions + pgvector) |
 
 ## 📡 API Endpoints
 
@@ -242,11 +237,6 @@ clear-clause/
 └── .github/workflows/
     └── deploy-backend.yml         # Docker build + auto-deploy to LKE
 ```
-
-
-## 📜 License
-
-MIT License
 
 ## 🙏 Credits
 
