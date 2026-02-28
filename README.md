@@ -243,9 +243,6 @@ clear-clause/
     └── deploy-backend.yml         # Docker build + auto-deploy to LKE
 ```
 
-## 🏆 Built For
-
-**DevDash 2026** — Code the Tomorrow.
 
 ## 📜 License
 
