@@ -481,6 +481,7 @@ export default function AnalysisPage() {
             <Dashboard
               result={session.result}
               onClauseSelect={(clauseId) => setSelectedClauseId(clauseId)}
+              selectedClauseId={selectedClauseId}
             />
           )}
 
