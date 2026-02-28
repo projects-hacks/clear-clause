@@ -239,16 +239,16 @@ async def get_document(
     )
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat")
 async def chat(
     request: ChatRequest,
     session: AnalysisSession = Depends(validate_session),
-) -> ChatResponse:
+):
     """
     Ask a question about an analyzed document.
     
-    Uses Gemini 3 Flash for fast, conversational responses.
-    Response includes answer and source clause references.
+    Uses Gemini Flash for fast, conversational responses.
+    Streams back SSE (Server-Sent Events) containing text chunks and source references.
     """
     from services.chat_service import chat_with_document
     
@@ -264,14 +264,23 @@ async def chat(
         question=request.question
     )
     
-    response = await chat_with_document(
+    # chat_with_document now returns an AsyncGenerator yielding SSE strings
+    generator = chat_with_document(
         question=request.question,
         document_context=session.result,
         max_tokens=request.max_tokens,
         session_id=session.session_id,
+        history=request.history,
     )
     
-    return response
+    return StreamingResponse(
+        generator,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive"
+        }
+    )
 
 
 @router.post("/transcribe")

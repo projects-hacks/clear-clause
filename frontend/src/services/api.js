@@ -205,16 +205,19 @@ export async function cancelSession(sessionId) {
  * @returns {Promise<ChatResponse>}
  */
 export async function askQuestion(sessionId, question, history = [], options = {}) {
+  const { onChunk, onSources, signal } = options;
+
   const response = await fetch(`${API_BASE_URL}/chat?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'text/event-stream'
     },
     body: JSON.stringify({
       question,
       history,
     }),
-    signal: options.signal,
+    signal,
   });
 
   if (!response.ok) {
@@ -239,7 +242,54 @@ export async function askQuestion(sessionId, question, history = [], options = {
     throw error;
   }
 
-  return response.json();
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+
+  let fullText = '';
+  let finalSources = null;
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+
+    // The last part might be incomplete, keep it in the buffer
+    buffer = parts.pop() || '';
+
+    for (const part of parts) {
+      if (part.startsWith('data: ')) {
+        const dataStr = part.substring(6).trim();
+
+        if (dataStr === '[DONE]') continue;
+        if (!dataStr) continue;
+
+        try {
+          const data = JSON.parse(dataStr);
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+          if (data.text) {
+            fullText += data.text;
+            if (onChunk) onChunk(fullText, data.text);
+          }
+          if (data.sources) {
+            finalSources = data.sources;
+            if (onSources) onSources(data.sources);
+          }
+        } catch (e) {
+          if (e.message !== 'Unexpected end of JSON input') {
+            console.error("Error parsing SSE chunk:", e, "Data string:", dataStr);
+          }
+        }
+      }
+    }
+  }
+
+  return { answer: fullText, sources: finalSources || [] };
 }
 
 /**

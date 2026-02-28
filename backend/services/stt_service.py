@@ -37,7 +37,7 @@ async def transcribe_audio(audio_bytes: bytes) -> str:
         
         response = client.listen.v1.media.transcribe_file(
             request=audio_bytes,
-            model="nova-2",
+            model="nova-3",
             language="en",
             smart_format=True,
             punctuate=True,

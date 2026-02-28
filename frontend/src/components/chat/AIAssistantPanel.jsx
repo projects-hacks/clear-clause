@@ -44,6 +44,9 @@ export default function AIAssistantPanel({ sessionId }) {
                     timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
                 }));
                 setMessages(restored);
+                if (restored.length > 0) {
+                    lastPlayedIdRef.current = restored[restored.length - 1].id;
+                }
             }
         } catch (e) {
             console.error('Failed to restore chat history:', e);
@@ -94,6 +97,7 @@ export default function AIAssistantPanel({ sessionId }) {
             lastMessage &&
             lastMessage.role === 'assistant' &&
             lastMessage.id !== 'welcome' &&
+            lastMessage.isComplete &&
             isVoiceOn &&
             !lastMessage.isError &&
             lastMessage.id !== currentlyPlaying &&
@@ -176,6 +180,7 @@ export default function AIAssistantPanel({ sessionId }) {
                 role: 'assistant',
                 content: friendly,
                 isError: true,
+                isComplete: true,
                 timestamp: new Date(),
             }]);
         } finally {
@@ -217,17 +222,35 @@ export default function AIAssistantPanel({ sessionId }) {
                     content: m.content
                 }));
 
-            const response = await askQuestion(sessionId, textContent, chatHistory, { signal: controller.signal });
+            const assistantId = (Date.now() + 1).toString();
 
-            const assistantMessage = {
-                id: (Date.now() + 1).toString(),
+            // Create a placeholder message for the assistant
+            setMessages(prev => [...prev, {
+                id: assistantId,
                 role: 'assistant',
-                content: response.answer,
-                sources: response.sources,
-                timestamp: new Date(),
-            };
+                content: '',
+                sources: null,
+                isComplete: false,
+                timestamp: new Date()
+            }]);
 
-            setMessages(prev => [...prev, assistantMessage]);
+            const response = await askQuestion(sessionId, textContent, chatHistory, {
+                signal: controller.signal,
+                onChunk: (fullText) => {
+                    setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: fullText } : m));
+                },
+                onSources: (sources) => {
+                    setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, sources } : m));
+                }
+            });
+
+            // Ensure the final state is captured (just in case) and mark complete for TTS
+            setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                    ? { ...m, content: response.answer, sources: response.sources, isComplete: true }
+                    : m
+            ));
+
         } catch (err) {
             if (err.name === 'AbortError') {
                 return;
@@ -241,6 +264,7 @@ export default function AIAssistantPanel({ sessionId }) {
                 role: 'assistant',
                 content: errorContent,
                 isError: true,
+                isComplete: true,
                 timestamp: new Date(),
             }]);
         } finally {

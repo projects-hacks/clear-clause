@@ -92,11 +92,11 @@ async def chat_with_document(
     max_tokens: int = 2048,
     session_id: str | None = None,
     history: list[dict] | None = None,
-) -> ChatResponse:
+) -> AsyncGenerator[str, None]:
     """
-    Answer a question about an analyzed document.
+    Answer a question about an analyzed document using SSE streaming.
 
-    Uses Gemini 3 Flash for fast, low-latency responses.
+    Uses Gemini Flash for fast, conversational responses.
 
     Args:
         question: User's question
@@ -105,45 +105,40 @@ async def chat_with_document(
         session_id: The analysis session ID
         history: Previous chat messages for context
 
-    Returns:
-        ChatResponse with answer and source references
+    Yields:
+        Server-Sent Events (SSE) strings containing text chunks
     """
     logger.info(
-        "Chat request",
+        "Chat request (streaming)",
         document=document_context.get('document_name', 'unknown'),
         question=question,
         max_tokens=max_tokens,
         history_length=len(history) if history else 0
     )
 
-    # Rate limiting
-    limiter = get_gemini_limiter(rpm=15, max_retries=3)  # Higher limit for chat
-
     try:
-        # Use rate limiter with function call
-        return await limiter.request(
-            _call_gemini_chat,
-            question,
-            document_context,
-            max_tokens,
-            session_id,
-            history,
-        )
+        # Directly call the streaming generator
+        async for chunk in _call_gemini_chat_stream(
+            question=question,
+            document_context=document_context,
+            max_tokens=max_tokens,
+            session_id=session_id,
+            history=history,
+        ):
+            yield chunk
+            
     except Exception as e:
-        logger.error("Chat failed", error=str(e))
-        return ChatResponse(
-            answer=f"I apologize, but I encountered an error processing your question: {str(e)}",
-            sources=None,
-        )
+        logger.error("Chat streaming failed", error=str(e))
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
 
-async def _call_gemini_chat(
+async def _call_gemini_chat_stream(
     question: str,
     document_context: dict,
     max_tokens: int,
     session_id: str | None = None,
     history: list[dict] | None = None,
-) -> ChatResponse:
+) -> AsyncGenerator[str, None]:
     """Call Gemini for chat response."""
     try:
         import google.genai as genai
@@ -213,8 +208,8 @@ async def _call_gemini_chat(
             question=question,
         )
         
-        # Generate response
-        response = client.models.generate_content(
+        # Generate streamed response
+        response_stream = client.models.generate_content_stream(
             model=settings.gemini_chat_model,
             contents=f"{CHAT_SYSTEM_PROMPT}\n\n{user_prompt}",
             config=genai.types.GenerateContentConfig(
@@ -223,21 +218,26 @@ async def _call_gemini_chat(
             )
         )
         
-        answer = response.text.strip()
+        full_answer = ""
         
-        # Extract clause references from answer
-        sources = _extract_clause_references(answer)
+        # Stream text chunks directly down to the client
+        for chunk in response_stream:
+            if chunk.text:
+                full_answer += chunk.text
+                yield f"data: {json.dumps({'text': chunk.text})}\n\n"
         
-        logger.info("Chat response generated", sources=sources)
-        
-        return ChatResponse(
-            answer=answer,
-            sources=sources if sources else None,
-        )
+        # After completing the text stream, quickly parse it for clause references
+        # and send them as the final chunk
+        sources = _extract_clause_references(full_answer.strip())
+        if sources:
+            yield f"data: {json.dumps({'sources': sources})}\n\n"
+            
+        logger.info("Chat response stream completed", sources=sources)
+        yield "data: [DONE]\n\n"
         
     except Exception as e:
         logger.error("Gemini chat call failed", error=str(e))
-        raise
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
 
 def _extract_clause_references(text: str) -> list[str]:
