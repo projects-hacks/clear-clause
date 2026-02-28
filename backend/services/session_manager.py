@@ -17,6 +17,36 @@ from config import get_settings
 logger = structlog.get_logger()
 settings = get_settings()
 
+
+def _ensure_list(val) -> list:
+    """Normalize a JSONB value that may be a str or already a list."""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+            return parsed if isinstance(parsed, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+    return []
+
+
+def _ensure_dict(val):
+    """Normalize a JSONB value that may be a str or already a dict."""
+    if val is None:
+        return None
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+            return parsed if isinstance(parsed, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
 _db_pool = None
 _db_tables_initialized = False
 
@@ -388,8 +418,8 @@ class SessionManager:
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 expires_at=row["expires_at"],
-                result=row["result"],
-                message_history=row["message_history"] or [],
+                result=_ensure_dict(row["result"]),
+                message_history=_ensure_list(row["message_history"]),
                 temp_file_path=row["temp_file_path"],
                 document_bytes=row["document_bytes"],
             )
@@ -460,8 +490,8 @@ class SessionManager:
                 current_progress = row["progress"]
                 current_message = row["message"]
                 current_error = row["error"]
-                current_result = row["result"]
-                history = row["message_history"] or []
+                current_result = _ensure_dict(row["result"])
+                history = _ensure_list(row["message_history"])
 
                 if status is not None:
                     current_status = status
@@ -675,8 +705,8 @@ class SessionManager:
                         created_at=row["created_at"],
                         updated_at=row["updated_at"],
                         expires_at=row["expires_at"],
-                        result=row["result"],
-                        message_history=row["message_history"] or [],
+                        result=_ensure_dict(row["result"]),
+                        message_history=_ensure_list(row["message_history"]),
                         temp_file_path=row["temp_file_path"],
                     )
                 )
