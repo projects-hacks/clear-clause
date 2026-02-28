@@ -109,7 +109,22 @@ export function AnalysisProvider({ children }) {
           // Clean up localStorage by removing invalid/duplicate entries
           localStorage.setItem('clearclause_sessions', JSON.stringify(uniqueSessions));
         }
-        uniqueSessions.forEach(session => {
+
+        // Auto-expire stale in-progress sessions (backend TTL is 30 min)
+        const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+        const now = Date.now();
+        const cleaned = uniqueSessions.map(s => {
+          if (
+            s.created_at &&
+            !['complete', 'error', 'expired'].includes(s.status) &&
+            (now - new Date(s.created_at).getTime()) > SESSION_TTL_MS
+          ) {
+            return { ...s, status: 'error', message: 'Session expired — please upload again.' };
+          }
+          return s;
+        });
+
+        cleaned.forEach(session => {
           dispatch({
             type: ACTIONS.ADD_SESSION,
             payload: session,
