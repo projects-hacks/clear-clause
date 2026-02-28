@@ -81,11 +81,11 @@ async def progress_event_generator(
 
 @router.post("/analyze")
 async def analyze_document(
+    request: Request,
     file: UploadFile = File(..., description="PDF document to analyze"),
     session_manager: SessionManager = Depends(get_session_manager_dep),
     settings: Settings = Depends(get_settings_dep),
     _ip_guard: None = Depends(enforce_per_ip_analysis_limit),
-    request: Request,
 ) -> StreamingResponse:
     """
     Upload a PDF document and start analysis pipeline.
