@@ -175,13 +175,17 @@ async def analyze_document(
     
     except HTTPException as e:
         # Concurrent limit reached
+        # Capture values outside the generator to avoid NameError once the except scope exits
+        detail = e.detail
+        status = e.status_code
+
         async def error_generator():
-            yield f"data: {json.dumps({'error': 'service_unavailable', 'message': e.detail})}\n\n"
+            yield f"data: {json.dumps({'error': 'service_unavailable', 'message': detail})}\n\n"
         
         return StreamingResponse(
             error_generator(),
             media_type="text/event-stream",
-            status_code=e.status_code,
+            status_code=status,
         )
     finally:
         # Decrement per-IP analysis counter so the IP is not permanently locked out.
