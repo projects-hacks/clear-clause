@@ -232,11 +232,39 @@ async def run_analysis_pipeline(
             session = await session_manager.get_session(session_id)
             document_name = session.document_name if session else 'document.pdf'
 
-            analysis_result = await analyze_document_with_gemini(
-                document_text=redacted_text,
-                document_name=document_name,
-                session_id=session_id,
-            )
+            async def _progress_updater():
+                messages = [
+                    (72, "Reading document structure..."),
+                    (75, "Identifying clauses..."),
+                    (78, "Classifying risk levels..."),
+                    (82, "Comparing against typical standards..."),
+                    (85, "Generating plain language summaries..."),
+                    (88, "Finalizing clause analysis..."),
+                ]
+                try:
+                    for prog, msg in messages:
+                        await asyncio.sleep(4)
+                        await session_manager.update_session(
+                            session_id=session_id,
+                            status=SessionStatusEnum.ANALYZING,
+                            progress=prog,
+                            message=msg
+                        )
+                except asyncio.CancelledError:
+                    pass
+
+            # Start updating progress in the background
+            loop = asyncio.get_running_loop()
+            progress_task = loop.create_task(_progress_updater())
+
+            try:
+                analysis_result = await analyze_document_with_gemini(
+                    document_text=redacted_text,
+                    document_name=document_name,
+                    session_id=session_id,
+                )
+            finally:
+                progress_task.cancel()
             
             # Store PII stats in the result
             analysis_result.pii_redacted_count = len(pii_map)

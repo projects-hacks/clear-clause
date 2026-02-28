@@ -444,6 +444,7 @@ export default function AnalysisPage() {
             sessionId={sessionId}
             clauses={session.result?.clauses || []}
             selectedClauseId={selectedClauseId}
+            onAnnotationClick={(clauseId) => setSelectedClauseId(clauseId)}
           />
         </div>
 
