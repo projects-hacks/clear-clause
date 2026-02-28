@@ -196,19 +196,20 @@
 
 .pii-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
 }
 
 .pii-icon-wrapper {
-  background: rgba(13, 148, 136, 0.15);
-  padding: 12px;
-  border-radius: 12px;
+  background: rgba(13, 148, 136, 0.1);
+  padding: 10px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--color-secondary);
-  box-shadow: 0 0 15px rgba(13, 148, 136, 0.2);
+  flex-shrink: 0;
+  border: 1px solid rgba(13, 148, 136, 0.2);
 }
 
 .pii-shield-card h3 {
@@ -230,19 +231,20 @@
 .pii-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 8px;
+  margin-left: 54px;
+  /* Align with the text content */
 }
 
 .pii-tag {
-  font-size: 0.75rem;
-  padding: 4px 10px;
-  background: rgba(13, 148, 136, 0.15);
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  background: rgba(13, 148, 136, 0.08);
   color: var(--color-secondary);
-  border-radius: 20px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  border: 1px solid rgba(13, 148, 136, 0.3);
+  border-radius: 6px;
+  font-weight: 500;
+  border: 1px solid rgba(13, 148, 136, 0.2);
 }
 
 /* Hero Section */
@@ -955,9 +957,9 @@
   display: flex;
   flex-direction: column;
   padding: var(--space-5);
-  background: radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 55%),
-              radial-gradient(circle at bottom right, rgba(34,197,94,0.12), transparent 55%),
-              var(--surface-base);
+  background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.12), transparent 55%),
+    var(--surface-base);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-lg);
   cursor: pointer;
@@ -966,9 +968,9 @@
 }
 
 .sample-doc-card:hover {
-  background: radial-gradient(circle at top left, rgba(59,130,246,0.32), transparent 55%),
-              radial-gradient(circle at bottom right, rgba(34,197,94,0.18), transparent 55%),
-              var(--surface-hover);
+  background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.32), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.18), transparent 55%),
+    var(--surface-hover);
   border-color: var(--accent-primary);
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
@@ -2234,6 +2236,7 @@
     opacity: 0;
     transform: translateY(-8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
