@@ -99,7 +99,11 @@ export default function AIAssistantPanel({ sessionId }) {
     const playTTS = async (text, msgId) => {
         try {
             setCurrentlyPlaying(msgId);
-            const audioBlob = await generateSpeech(sessionId, text);
+
+            // Strip markdown like **, *, #, etc. so the voice doesn't read "asterisk"
+            const plainText = text.replace(/[*#_`~]/g, '').trim();
+
+            const audioBlob = await generateSpeech(sessionId, plainText);
             const url = URL.createObjectURL(audioBlob);
             const audio = new Audio(url);
 

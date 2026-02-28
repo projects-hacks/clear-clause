@@ -106,6 +106,15 @@ export default function DocumentViewer({ sessionId, clauses = [], selectedClause
 
       } catch (err) {
         console.error('Failed to initialize WebViewer:', err);
+
+        // If Vercel deployed a new version while the user had the tab open,
+        // the dynamically imported chunk (.js file) might return 404
+        if (err.message && err.message.includes('fetch dynamically imported module')) {
+          console.warn('Deployment updated. Reloading page to fetch new assets...');
+          window.location.reload();
+          return;
+        }
+
         if (isMounted) {
           setError('Failed to load document viewer. Check that @pdftron/webviewer is installed.');
           setIsViewerReady(true); // Show error state

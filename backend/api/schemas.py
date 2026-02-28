@@ -160,14 +160,14 @@ class ChatRequest(BaseModel):
     """Request for document-aware chat."""
     question: str = Field(description="User's question about the document")
     history: Optional[List[dict]] = Field(default=None, description="Previous messages in the conversation")
-    max_tokens: int = Field(default=512, ge=64, le=2048)
+    max_tokens: int = Field(default=2048, ge=64, le=4096)
     
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
                     "question": "What are my termination rights?",
-                    "max_tokens": 512
+                    "max_tokens": 2048
                 }
             ]
         }
